@@ -48,6 +48,7 @@ import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.verify
 import junit.framework.TestCase.assertEquals
+import junit.framework.TestCase.assertNotSame
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -378,7 +379,8 @@ class MapboxNavigationTelemetryTest {
         initTelemetry()
         sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
 
-        newRouteChannel.offer(ExternalRoute(originalRoute))
+        coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(routeFromProgress)
+        newRouteChannel.offer(ExternalRoute(routeFromProgress))
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -387,6 +389,13 @@ class MapboxNavigationTelemetryTest {
         assertTrue(events[2] is NavigationCancelEvent)
         assertTrue(events[3] is NavigationDepartEvent)
         assertEquals(4, events.size)
+
+        val firstDepart = events[1] as NavigationDepartEvent
+        val secondDepart = events[3] as NavigationDepartEvent
+
+        assertNotSame(firstDepart.originalStepCount, secondDepart.originalStepCount)
+        assertNotSame(firstDepart.originalEstimatedDistance, secondDepart.originalEstimatedDistance)
+        assertNotSame(firstDepart.originalRequestIdentifier, secondDepart.originalRequestIdentifier)
     }
 
     @Test
