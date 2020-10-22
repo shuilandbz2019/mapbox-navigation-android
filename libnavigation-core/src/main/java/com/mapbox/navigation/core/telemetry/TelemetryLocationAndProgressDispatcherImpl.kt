@@ -59,7 +59,10 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     private suspend fun flushLocationEventBuffer() {
-        Logger.d(TAG, "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}")
+        Logger.d(
+            TAG,
+            "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}"
+        )
         eventsLocationsBuffer.forEach { it.onBufferFull() }
     }
 

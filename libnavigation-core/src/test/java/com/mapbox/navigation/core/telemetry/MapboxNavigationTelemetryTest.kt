@@ -490,7 +490,6 @@ class MapboxNavigationTelemetryTest {
         initTelemetry()
         sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
-
         postUserFeedback()
         newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
