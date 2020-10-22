@@ -624,6 +624,7 @@ class MapboxNavigationTelemetryTest {
             navigationOptions,
             MapboxMetricsReporter,
             mainJobControl,
+            null,
             callbackDispatcher
         )
     }

@@ -2,7 +2,8 @@ package com.mapbox.navigation.core.telemetry
 
 import android.location.Location
 import com.mapbox.api.directions.v5.models.DirectionsRoute
-import com.mapbox.common.Logger
+import com.mapbox.base.common.logger.Logger
+import com.mapbox.base.common.logger.model.Message
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.NavigationSession.State
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
@@ -19,7 +20,8 @@ import kotlinx.coroutines.sync.withLock
 import java.util.Collections.synchronizedList
 
 internal class TelemetryLocationAndProgressDispatcherImpl(
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val logger: Logger?
 ) :
     TelemetryLocationAndProgressDispatcher {
 
@@ -59,9 +61,11 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     private suspend fun flushLocationEventBuffer() {
-        Logger.d(
+        logger?.d(
             TAG,
-            "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}"
+            Message(
+                "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}"
+            )
         )
         eventsLocationsBuffer.forEach { it.onBufferFull() }
     }
@@ -115,7 +119,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
             accumulateLocation(rawLocation)
             accumulatePostEventLocation(rawLocation)
             if (firstLocation == null) {
-                Logger.d(TAG, "set first location")
+                logger?.d(TAG, Message("set first location"))
                 firstLocation = rawLocation
             }
         }
@@ -126,7 +130,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onRoutesChanged(routes: List<DirectionsRoute>) {
-        Logger.d(TAG, "onRoutesChanged received. Route list size = ${routes.size}")
+        logger?.d(TAG, Message("onRoutesChanged received. Route list size = ${routes.size}"))
         routes.getOrNull(0)?.let {
             if (sessionState == ACTIVE_GUIDANCE) {
                 if (originalRoute.isCompleted) {
@@ -147,14 +151,14 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onOffRouteStateChanged(offRoute: Boolean) {
-        Logger.d(TAG, "onOffRouteStateChanged $offRoute")
+        logger?.d(TAG, Message("onOffRouteStateChanged $offRoute"))
         if (offRoute) {
             needHandleReroute = true
         }
     }
 
     override fun onNavigationSessionStateChanged(navigationSession: State) {
-        Logger.d(TAG, "Navigation state is $navigationSession")
+        logger?.d(TAG, Message("Navigation state is $navigationSession"))
         sessionState = navigationSession
         sessionStateChannel.offer(navigationSession)
     }

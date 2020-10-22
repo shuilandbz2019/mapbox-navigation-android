@@ -27,7 +27,7 @@ class TelemetryLocationAndProgressDispatcherTest {
     private val route: DirectionsRoute = mockk(relaxed = true)
     private val routes: List<DirectionsRoute> = listOf(route)
     private val callbackDispatcher =
-        TelemetryLocationAndProgressDispatcherImpl(coroutineRule.coroutineScope)
+        TelemetryLocationAndProgressDispatcherImpl(coroutineRule.coroutineScope, null)
 
     @Before
     fun setUp() {

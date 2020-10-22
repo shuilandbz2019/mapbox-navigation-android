@@ -9,7 +9,9 @@ import com.mapbox.android.telemetry.AppUserTurnstile
 import com.mapbox.android.telemetry.TelemetryUtils.generateCreateDateFormatted
 import com.mapbox.android.telemetry.TelemetryUtils.obtainUniversalUniqueIdentifier
 import com.mapbox.api.directions.v5.models.DirectionsRoute
-import com.mapbox.common.Logger
+import com.mapbox.base.common.logger.Logger
+import com.mapbox.base.common.logger.model.Message
+import com.mapbox.base.common.logger.model.Tag
 import com.mapbox.navigation.base.metrics.MetricEvent
 import com.mapbox.navigation.base.metrics.MetricsReporter
 import com.mapbox.navigation.base.options.NavigationOptions
@@ -90,7 +92,7 @@ internal object MapboxNavigationTelemetry {
     private const val ONE_SECOND = 1000
     private const val MOCK_PROVIDER = "com.mapbox.navigation.core.replay.ReplayLocationEngine"
     private const val EVENT_VERSION = 7
-    internal const val TAG = "MAPBOX_TELEMETRY"
+    internal val TAG = Tag("MAPBOX_TELEMETRY")
 
     private lateinit var context: Context // Must be context.getApplicationContext
     private lateinit var telemetryThreadControl: JobControl
@@ -109,7 +111,7 @@ internal object MapboxNavigationTelemetry {
             }
             field = value
             ifNonNull(value) { app ->
-                Logger.d(TAG, "Lifecycle monitor created")
+                logger?.d(TAG, Message("Lifecycle monitor created"))
                 lifecycleMonitor = ApplicationLifecycleMonitor(app)
             }
         }
@@ -117,6 +119,7 @@ internal object MapboxNavigationTelemetry {
     private var locationEngineNameExternal: String = LocationEngine::javaClass.name
     private lateinit var callbackDispatcher: TelemetryLocationAndProgressDispatcher
     private lateinit var sdkIdentifier: String
+    private var logger: Logger? = null
 
     /**
      * This method must be called before using the Telemetry object
@@ -126,9 +129,11 @@ internal object MapboxNavigationTelemetry {
         options: NavigationOptions,
         reporter: MetricsReporter,
         jobControl: JobControl,
+        logger: Logger?,
         callbackDispatcher: TelemetryLocationAndProgressDispatcher =
-            TelemetryLocationAndProgressDispatcherImpl(jobControl.scope)
+            TelemetryLocationAndProgressDispatcherImpl(jobControl.scope, logger)
     ) {
+        this.logger = logger
         this.callbackDispatcher = callbackDispatcher
         telemetryThreadControl = jobControl
         navigationOptions = options
@@ -146,7 +151,7 @@ internal object MapboxNavigationTelemetry {
         monitorNewRoutes()
         monitorJobCancellation()
         postTurnstileEvent()
-        Logger.i(TAG, "Valid initialization")
+        this.logger?.d(TAG, Message("Valid initialization"))
     }
 
     private fun switchToNotActiveGuidanceBehavior() {
@@ -159,12 +164,11 @@ internal object MapboxNavigationTelemetry {
     }
 
     private fun sessionStart() {
-        Logger.d(TAG, "sessionStart")
+        logger?.d(TAG, Message("sessionStart"))
         telemetryThreadControl.scope.launch {
             callbackDispatcher.clearLocationEventBuffer()
             callbackDispatcher.resetRouteProgress()
             callbackDispatcher.originalRoute.await().let { route ->
-                Logger.d(TAG, "sessionStart originalRoute after await")
                 dynamicValues.run {
                     originalRoute.set(route)
                     sessionId = obtainUniversalUniqueIdentifier()
@@ -187,7 +191,7 @@ internal object MapboxNavigationTelemetry {
     }
 
     private suspend fun sessionStop() {
-        Logger.d(TAG, "sessionStop")
+        logger?.d(TAG, Message("sessionStop"))
         handleSessionCanceled()
         dynamicValues.reset()
         callbackDispatcher.resetOriginalRoute()
@@ -195,14 +199,16 @@ internal object MapboxNavigationTelemetry {
 
     private fun sendMetricEvent(event: MetricEvent) {
         if (isTelemetryAvailable()) {
-            Logger.d(TAG, "${event::class.java} event sent")
+            logger?.d(TAG, Message("${event::class.java} event sent"))
             metricsReporter.addEvent(event)
         } else {
-            Logger.d(
+            logger?.d(
                 TAG,
-                "${event::class.java} not sent. Caused by: " +
-                    "Navigation Session started: ${dynamicValues.sessionStarted.get()}. " +
-                    "Route exists: ${dynamicValues.originalRoute.get() != null}"
+                Message(
+                    "${event::class.java} not sent. Caused by: " +
+                        "Navigation Session started: ${dynamicValues.sessionStarted.get()}. " +
+                        "Route exists: ${dynamicValues.originalRoute.get() != null}"
+                )
             )
         }
     }
@@ -235,7 +241,6 @@ internal object MapboxNavigationTelemetry {
         telemetryThreadControl.scope.monitorChannelWithException(
             callbackDispatcher.newRouteChannel,
             {
-                Logger.d(TAG, "new Route")
                 when (it) {
                     is RerouteRoute -> handleReroute(it.route)
                     is ExternalRoute -> handleExternalRoute(it.route)
@@ -245,7 +250,7 @@ internal object MapboxNavigationTelemetry {
     }
 
     private suspend fun handleReroute(newRoute: DirectionsRoute) {
-        Logger.d(TAG, "handleReroute")
+        logger?.d(TAG, Message("handleReroute"))
         dynamicValues.run {
             val currentTime = Time.SystemImpl.millis()
             timeSinceLastReroute.set((currentTime - timeOfReroute.get()).toInt())
@@ -275,7 +280,7 @@ internal object MapboxNavigationTelemetry {
     }
 
     private suspend fun handleExternalRoute(route: DirectionsRoute) {
-        Logger.d(TAG, "handleExternalRoute")
+        logger?.d(TAG, Message("handleExternalRoute"))
         sessionStop()
         callbackDispatcher.resetOriginalRoute(route)
         sessionStart()
@@ -285,7 +290,7 @@ internal object MapboxNavigationTelemetry {
         telemetryScope.launch {
             select {
                 telemetryThreadControl.job.onJoin {
-                    Logger.d(TAG, "master job canceled")
+                    logger?.d(TAG, Message("master job canceled"))
                     sessionStop()
                     MapboxMetricsReporter.disable()
                 }
@@ -303,7 +308,7 @@ internal object MapboxNavigationTelemetry {
     ) {
         telemetryThreadControl.scope.launch {
             if (dynamicValues.sessionStarted.get()) {
-                Logger.d(TAG, "collect post event locations for user feedback")
+                logger?.d(TAG, Message("collect post event locations for user feedback"))
                 val feedbackEvent = NavigationFeedbackEvent(
                     PhoneState(context),
                     MetricsRouteProgress(callbackDispatcher.routeProgress)
@@ -318,7 +323,7 @@ internal object MapboxNavigationTelemetry {
                 populateNavigationEvent(feedbackEvent)
 
                 callbackDispatcher.accumulatePostEventLocations { preEventBuffer, postEventBuffer ->
-                    Logger.d(TAG, "locations ready")
+                    logger?.d(TAG, Message("locations ready"))
                     feedbackEvent.apply {
                         locationsBefore = preEventBuffer.toTelemetryLocations()
                         locationsAfter = postEventBuffer.toTelemetryLocations()
@@ -330,7 +335,7 @@ internal object MapboxNavigationTelemetry {
     }
 
     private suspend fun handleSessionCanceled() {
-        Logger.d(TAG, "handleSessionCanceled")
+        logger?.d(TAG, Message("handleSessionCanceled"))
         callbackDispatcher.clearLocationEventBuffer()
 
         val cancelEvent = NavigationCancelEvent(PhoneState(context))
@@ -352,7 +357,7 @@ internal object MapboxNavigationTelemetry {
 
     private suspend fun processArrival() {
         if (dynamicValues.sessionStarted.get()) {
-            Logger.d(TAG, "you have arrived")
+            logger?.d(TAG, Message("you have arrived"))
 
             dynamicValues.run {
                 tripIdentifier.set(obtainUniversalUniqueIdentifier())
@@ -363,7 +368,7 @@ internal object MapboxNavigationTelemetry {
             populateNavigationEvent(arriveEvent)
             sendMetricEvent(arriveEvent)
         } else {
-            Logger.d(TAG, "route arrival received before a session start")
+            logger?.d(TAG, Message("route arrival received before a session start"))
         }
     }
 
@@ -409,7 +414,7 @@ internal object MapboxNavigationTelemetry {
         route: DirectionsRoute? = null,
         newLocation: Location? = null
     ) {
-        Logger.d(TAG, "populateNavigationEvent")
+        logger?.d(TAG, Message("populateNavigationEvent"))
 
         val directionsRoute = route ?: callbackDispatcher.routeProgress?.route
         val location = newLocation ?: callbackDispatcher.lastLocation
