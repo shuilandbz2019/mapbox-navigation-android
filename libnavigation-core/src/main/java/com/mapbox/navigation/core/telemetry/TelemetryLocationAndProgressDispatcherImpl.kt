@@ -1,8 +1,8 @@
 package com.mapbox.navigation.core.telemetry
 
 import android.location.Location
-import android.util.Log
 import com.mapbox.api.directions.v5.models.DirectionsRoute
+import com.mapbox.common.Logger
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.NavigationSession.State
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
@@ -59,7 +59,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     private suspend fun flushLocationEventBuffer() {
-        Log.d(TAG, "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}")
+        Logger.d(TAG, "flushing eventsLocationsBuffer. Pending events = ${eventsLocationsBuffer.size}")
         eventsLocationsBuffer.forEach { it.onBufferFull() }
     }
 
@@ -112,7 +112,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
             accumulateLocation(rawLocation)
             accumulatePostEventLocation(rawLocation)
             if (firstLocation == null) {
-                Log.d(TAG, "set first location")
+                Logger.d(TAG, "set first location")
                 firstLocation = rawLocation
             }
         }
@@ -123,7 +123,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onRoutesChanged(routes: List<DirectionsRoute>) {
-        Log.d(TAG, "onRoutesChanged received. Route list size = ${routes.size}")
+        Logger.d(TAG, "onRoutesChanged received. Route list size = ${routes.size}")
         routes.getOrNull(0)?.let {
             if (sessionState == ACTIVE_GUIDANCE) {
                 if (originalRoute.isCompleted) {
@@ -144,14 +144,14 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onOffRouteStateChanged(offRoute: Boolean) {
-        Log.d(TAG, "onOffRouteStateChanged $offRoute")
+        Logger.d(TAG, "onOffRouteStateChanged $offRoute")
         if (offRoute) {
             needHandleReroute = true
         }
     }
 
     override fun onNavigationSessionStateChanged(navigationSession: State) {
-        Log.d(TAG, "Navigation state is $navigationSession")
+        Logger.d(TAG, "Navigation state is $navigationSession")
         sessionState = navigationSession
         sessionStateChannel.offer(navigationSession)
     }
