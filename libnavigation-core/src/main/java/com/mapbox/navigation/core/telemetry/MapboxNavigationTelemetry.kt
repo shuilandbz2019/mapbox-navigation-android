@@ -439,7 +439,9 @@ internal object MapboxNavigationTelemetry {
                 }
             }
 
+            logger?.d(TAG, Message("originalRoute await"))
             callbackDispatcher.originalRoute.await().let {
+                logger?.d(TAG, Message("originalRoute ready"))
                 originalStepCount = obtainStepCount(it)
                 originalEstimatedDistance = it.distance().toInt()
                 originalEstimatedDuration = it.duration().toInt()

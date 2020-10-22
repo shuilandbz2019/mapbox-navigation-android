@@ -14,6 +14,8 @@ import com.mapbox.api.directions.v5.models.LegStep
 import com.mapbox.api.directions.v5.models.RouteLeg
 import com.mapbox.api.directions.v5.models.RouteOptions
 import com.mapbox.api.directions.v5.models.StepManeuver
+import com.mapbox.base.common.logger.Logger
+import com.mapbox.base.common.logger.model.Message
 import com.mapbox.geojson.Point
 import com.mapbox.navigation.base.metrics.MetricEvent
 import com.mapbox.navigation.base.options.NavigationOptions
@@ -51,7 +53,6 @@ import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotSame
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -110,9 +111,7 @@ class MapboxNavigationTelemetryTest {
     private val navigationOptions: NavigationOptions = mockk(relaxed = true)
     private val callbackDispatcher: TelemetryLocationAndProgressDispatcher = mockk()
     private val parentJob = SupervisorJob()
-    private val testScope = CoroutineScope(parentJob + coroutineRule.testDispatcher)
-    private val mainJobControl = JobControl(parentJob, testScope)
-    private val ioJobControl = JobControl(parentJob, testScope)
+    private val mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
     private val routeProgressChannel = Channel<RouteProgress>(Channel.CONFLATED)
     private val newRouteChannel = Channel<NewRoute>(Channel.CONFLATED)
     private val sessionStateChannel = Channel<NavigationSession.State>(Channel.CONFLATED)
@@ -137,6 +136,7 @@ class MapboxNavigationTelemetryTest {
     private val progressStepManeuverLocation = mockk<Point>()
     private val legProgress = mockk<RouteLegProgress>()
     private val stepProgress = mockk<RouteStepProgress>()
+    private val logger: Logger = mockk(relaxed = true)
 
     @Before
     fun setup() {
@@ -147,7 +147,6 @@ class MapboxNavigationTelemetryTest {
 
         every { MapboxMetricsReporter.addEvent(any()) } just Runs
 
-        every { ThreadController.getIOScopeAndRootJob() } returns ioJobControl
         every { ThreadController.getMainScopeAndRootJob() } returns mainJobControl
         every { ThreadController.IODispatcher } returns coroutineRule.testDispatcher
 
@@ -532,7 +531,51 @@ class MapboxNavigationTelemetryTest {
         newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
 
+        verify(exactly = 8) {
+            logger.d(MapboxNavigationTelemetry.TAG, Message("populateNavigationEvent"))
+        }
+
         parentJob.cancel()
+
+        verify(exactly = 1) {
+            logger.d(
+                MapboxNavigationTelemetry.TAG,
+                Message(
+                    "class com.mapbox.navigation.core.telemetry.events.NavigationDepartEvent " +
+                        "event sent"
+                )
+            )
+        }
+
+        verify(exactly = 1) {
+            logger.d(
+                MapboxNavigationTelemetry.TAG,
+                Message(
+                    "class com.mapbox.navigation.core.telemetry.events.NavigationRerouteEvent " +
+                        "event sent"
+                )
+            )
+        }
+
+        verify(exactly = 6) {
+            logger.d(
+                MapboxNavigationTelemetry.TAG,
+                Message(
+                    "class com.mapbox.navigation.core.telemetry.events.NavigationFeedbackEvent " +
+                        "event sent"
+                )
+            )
+        }
+
+        verify(exactly = 1) {
+            logger.d(
+                MapboxNavigationTelemetry.TAG,
+                Message(
+                    "class com.mapbox.navigation.core.telemetry.events.NavigationCancelEvent " +
+                        "event sent"
+                )
+            )
+        }
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -624,7 +667,7 @@ class MapboxNavigationTelemetryTest {
             navigationOptions,
             MapboxMetricsReporter,
             mainJobControl,
-            null,
+            logger,
             callbackDispatcher
         )
     }
