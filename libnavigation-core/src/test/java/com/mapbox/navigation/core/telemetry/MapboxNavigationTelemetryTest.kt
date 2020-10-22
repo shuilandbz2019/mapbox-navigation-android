@@ -22,9 +22,9 @@ import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.base.trip.model.RouteProgressState.ROUTE_COMPLETE
 import com.mapbox.navigation.base.trip.model.RouteStepProgress
 import com.mapbox.navigation.core.MapboxNavigation
+import com.mapbox.navigation.core.NavigationSession
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
 import com.mapbox.navigation.core.NavigationSession.State.FREE_DRIVE
-import com.mapbox.navigation.core.NavigationSessionStateObserver
 import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
 import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
 import com.mapbox.navigation.core.telemetry.events.NavigationArriveEvent
@@ -113,9 +113,9 @@ class MapboxNavigationTelemetryTest {
     private val testScope = CoroutineScope(parentJob + coroutineRule.testDispatcher)
     private val mainJobControl = JobControl(parentJob, testScope)
     private val ioJobControl = JobControl(parentJob, testScope)
-    private val sessionObserverSlot = slot<NavigationSessionStateObserver>()
     private val routeProgressChannel = Channel<RouteProgress>(Channel.CONFLATED)
     private val newRouteChannel = Channel<NewRoute>(Channel.CONFLATED)
+    private val sessionStateChannel = Channel<NavigationSession.State>(Channel.CONFLATED)
     private val routeProgress = mockk<RouteProgress>()
     private val originalRoute = mockk<DirectionsRoute>()
     private val routeFromProgress = mockk<DirectionsRoute>()
@@ -174,10 +174,6 @@ class MapboxNavigationTelemetryTest {
             applicationContext.getSystemService(Context.ACTIVITY_SERVICE)
         } returns activityManager
         every { activityManager.runningAppProcesses } returns listOf()
-
-        every {
-            mapboxNavigation.registerNavigationSessionObserver(capture(sessionObserverSlot))
-        } just Runs
 
         coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(originalRoute)
         every { originalRoute.geometry() } returns ORIGINAL_ROUTE_GEOMETRY
@@ -241,6 +237,8 @@ class MapboxNavigationTelemetryTest {
         every { callbackDispatcher.resetRouteProgress() } just Runs
         every { callbackDispatcher.resetOriginalRoute(any()) } just Runs
         coEvery { callbackDispatcher.clearLocationEventBuffer() } just Runs
+
+        every { callbackDispatcher.sessionStateChannel } returns sessionStateChannel
     }
 
     /**
@@ -300,7 +298,7 @@ class MapboxNavigationTelemetryTest {
         every { routeProgress.route } returns originalRoute
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         val events = mutableListOf<MetricEvent>()
         verify(exactly = 2) { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -344,8 +342,8 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun cancelEvent_sent_on_active_guidance_stop() = runBlocking {
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(FREE_DRIVE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(FREE_DRIVE)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -362,7 +360,7 @@ class MapboxNavigationTelemetryTest {
         every { routeProgress.currentState } returns ROUTE_COMPLETE
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         routeProgressChannel.offer(routeProgress)
 
@@ -377,7 +375,7 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun cancel_and_depart_events_sent_on_external_route() = runBlocking {
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(routeFromProgress)
         newRouteChannel.offer(ExternalRoute(routeFromProgress))
@@ -404,7 +402,7 @@ class MapboxNavigationTelemetryTest {
         every { callbackDispatcher.accumulatePostEventLocations(capture(actionSlot)) } just Runs
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         newRouteChannel.offer(RerouteRoute(routeFromProgress))
 
@@ -465,7 +463,7 @@ class MapboxNavigationTelemetryTest {
         }
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         postUserFeedback()
         newRouteChannel.offer(RerouteRoute(originalRoute))
@@ -490,7 +488,8 @@ class MapboxNavigationTelemetryTest {
         }
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+
 
         postUserFeedback()
         newRouteChannel.offer(RerouteRoute(originalRoute))
@@ -499,7 +498,7 @@ class MapboxNavigationTelemetryTest {
         postUserFeedback()
         postUserFeedback()
 
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(FREE_DRIVE)
+        sessionStateChannel.offer(FREE_DRIVE)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -524,7 +523,7 @@ class MapboxNavigationTelemetryTest {
         }
 
         initTelemetry()
-        sessionObserverSlot.captured.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
+        sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         postUserFeedback()
         postUserFeedback()

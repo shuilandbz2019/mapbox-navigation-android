@@ -3,6 +3,7 @@ package com.mapbox.navigation.core.telemetry
 import android.location.Location
 import com.mapbox.api.directions.v5.models.DirectionsRoute
 import com.mapbox.navigation.base.trip.model.RouteProgress
+import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
 import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
 import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
 import com.mapbox.navigation.testing.MainCoroutineRule
@@ -49,7 +50,8 @@ class TelemetryLocationAndProgressDispatcherTest {
     }
 
     @Test
-    fun originalRouteSetOnlyOnce() = runBlocking {
+    fun originalRouteSetOnlyOnceForActiveGuidance() = runBlocking {
+        callbackDispatcher.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
         callbackDispatcher.onRoutesChanged(routes)
         callbackDispatcher.onRoutesChanged(listOf(mockk()))
         callbackDispatcher.onRoutesChanged(listOf(mockk()))
@@ -59,6 +61,7 @@ class TelemetryLocationAndProgressDispatcherTest {
 
     @Test
     fun when_Reroute_RerouteRoute_PassedToChannel() = runBlocking {
+        callbackDispatcher.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
         callbackDispatcher.onOffRouteStateChanged(true)
         callbackDispatcher.onRoutesChanged(routes)
 
@@ -67,6 +70,7 @@ class TelemetryLocationAndProgressDispatcherTest {
 
     @Test
     fun when_RaceReroute_RerouteRoute_PassedToChannel() = runBlocking {
+        callbackDispatcher.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
         callbackDispatcher.onOffRouteStateChanged(true)
         callbackDispatcher.onOffRouteStateChanged(false)
         callbackDispatcher.onRoutesChanged(routes)
@@ -76,6 +80,7 @@ class TelemetryLocationAndProgressDispatcherTest {
 
     @Test
     fun when_RouteSetExternally_ExternalRoute_PassedToChannel() = runBlocking {
+        callbackDispatcher.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
         callbackDispatcher.onRoutesChanged(routes)
 
         assertEquals(route, (callbackDispatcher.newRouteChannel.receive() as ExternalRoute).route)
@@ -83,6 +88,7 @@ class TelemetryLocationAndProgressDispatcherTest {
 
     @Test
     fun valid_Routes_PassedToChannel() = runBlocking {
+        callbackDispatcher.onNavigationSessionStateChanged(ACTIVE_GUIDANCE)
         callbackDispatcher.onRoutesChanged(routes)
         assertEquals(route, (callbackDispatcher.newRouteChannel.receive() as ExternalRoute).route)
 

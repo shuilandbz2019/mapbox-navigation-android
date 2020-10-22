@@ -4,6 +4,9 @@ import android.location.Location
 import android.util.Log
 import com.mapbox.api.directions.v5.models.DirectionsRoute
 import com.mapbox.navigation.base.trip.model.RouteProgress
+import com.mapbox.navigation.core.NavigationSession.State
+import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
+import com.mapbox.navigation.core.NavigationSession.State.IDLE
 import com.mapbox.navigation.core.telemetry.MapboxNavigationTelemetry.TAG
 import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
 import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
@@ -29,6 +32,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
 
     override val routeProgressChannel = Channel<RouteProgress>(Channel.CONFLATED)
     override val newRouteChannel = Channel<NewRoute>(Channel.CONFLATED)
+    override val sessionStateChannel = Channel<State>(Channel.CONFLATED)
 
     override val lastLocation: Location?
         get() = locationsBuffer.lastOrNull()
@@ -37,6 +41,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     override var originalRoute = CompletableDeferred<DirectionsRoute>()
     private val mutex = Mutex()
     private var needHandleReroute = false
+    private var sessionState: State = IDLE
 
     private suspend fun accumulatePostEventLocation(location: Location) {
         mutex.withLock {
@@ -120,17 +125,21 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     override fun onRoutesChanged(routes: List<DirectionsRoute>) {
         Log.d(TAG, "onRoutesChanged received. Route list size = ${routes.size}")
         routes.getOrNull(0)?.let {
-            if (originalRoute.isCompleted) {
-                newRouteChannel.offer(
-                    if (needHandleReroute) {
-                        needHandleReroute = false
-                        RerouteRoute(it)
-                    } else {
-                        ExternalRoute(it)
-                    }
-                )
+            if (sessionState == ACTIVE_GUIDANCE) {
+                if (originalRoute.isCompleted) {
+                    newRouteChannel.offer(
+                        if (needHandleReroute) {
+                            needHandleReroute = false
+                            RerouteRoute(it)
+                        } else {
+                            ExternalRoute(it)
+                        }
+                    )
+                }
+                originalRoute.complete(it)
+            } else {
+                originalRoute = CompletableDeferred(it)
             }
-            originalRoute.complete(it)
         }
     }
 
@@ -139,6 +148,12 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
         if (offRoute) {
             needHandleReroute = true
         }
+    }
+
+    override fun onNavigationSessionStateChanged(navigationSession: State) {
+        Log.d(TAG, "Navigation state is $navigationSession")
+        sessionState = navigationSession
+        sessionStateChannel.offer(navigationSession)
     }
 
     @Synchronized

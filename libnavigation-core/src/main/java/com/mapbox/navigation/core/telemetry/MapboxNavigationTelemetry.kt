@@ -16,11 +16,9 @@ import com.mapbox.navigation.base.options.NavigationOptions
 import com.mapbox.navigation.base.trip.model.RouteProgressState.ROUTE_COMPLETE
 import com.mapbox.navigation.core.BuildConfig
 import com.mapbox.navigation.core.MapboxNavigation
-import com.mapbox.navigation.core.NavigationSession.State
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
 import com.mapbox.navigation.core.NavigationSession.State.FREE_DRIVE
 import com.mapbox.navigation.core.NavigationSession.State.IDLE
-import com.mapbox.navigation.core.NavigationSessionStateObserver
 import com.mapbox.navigation.core.internal.accounts.MapboxNavigationAccounts
 import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
 import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
@@ -83,7 +81,6 @@ private data class DynamicSessionValues(
 - navigation.depart
 - navigation.feedback
 - navigation.reroute
-- navigation.fasterRoute
 - navigation.arrive
 - navigation.cancel
 The class must be initialized before any telemetry events are reported. Attempting to use telemetry before initialization is called will throw an exception. Initialization may be called multiple times, the call is idempotent.
@@ -121,16 +118,6 @@ internal object MapboxNavigationTelemetry {
     private lateinit var callbackDispatcher: TelemetryLocationAndProgressDispatcher
     private lateinit var sdkIdentifier: String
 
-    private val navigationSessionObserver = object : NavigationSessionStateObserver {
-        override fun onNavigationSessionStateChanged(navigationSession: State) {
-            Log.d(TAG, "Navigation state is $navigationSession")
-            when (navigationSession) {
-                FREE_DRIVE, IDLE -> switchToNotActiveGuidanceBehavior()
-                ACTIVE_GUIDANCE -> sessionStart()
-            }
-        }
-    }
-
     /**
      * This method must be called before using the Telemetry object
      */
@@ -155,6 +142,7 @@ internal object MapboxNavigationTelemetry {
         metricsReporter = reporter
 
         registerListeners(mapboxNavigation)
+        monitorSessionState()
         monitorNewRoutes()
         monitorJobCancellation()
         postTurnstileEvent()
@@ -176,6 +164,7 @@ internal object MapboxNavigationTelemetry {
             callbackDispatcher.clearLocationEventBuffer()
             callbackDispatcher.resetRouteProgress()
             callbackDispatcher.originalRoute.await().let { route ->
+                Log.d(TAG, "sessionStart originalRoute after await")
                 dynamicValues.run {
                     originalRoute.set(route)
                     sessionId = obtainUniversalUniqueIdentifier()
@@ -230,10 +219,23 @@ internal object MapboxNavigationTelemetry {
         appInstance = app
     }
 
+    private fun monitorSessionState() {
+        telemetryThreadControl.scope.monitorChannelWithException(
+            callbackDispatcher.sessionStateChannel,
+            {
+                when (it) {
+                    FREE_DRIVE, IDLE -> switchToNotActiveGuidanceBehavior()
+                    ACTIVE_GUIDANCE -> sessionStart()
+                }
+            }
+        )
+    }
+
     private fun monitorNewRoutes() {
         telemetryThreadControl.scope.monitorChannelWithException(
             callbackDispatcher.newRouteChannel,
             {
+                Log.d(TAG, "new Route")
                 when (it) {
                     is RerouteRoute -> handleReroute(it.route)
                     is ExternalRoute -> handleExternalRoute(it.route)
@@ -388,7 +390,7 @@ internal object MapboxNavigationTelemetry {
             registerLocationObserver(callbackDispatcher)
             registerRoutesObserver(callbackDispatcher)
             registerOffRouteObserver(callbackDispatcher)
-            registerNavigationSessionObserver(navigationSessionObserver)
+            registerNavigationSessionObserver(callbackDispatcher)
         }
     }
 
@@ -398,7 +400,7 @@ internal object MapboxNavigationTelemetry {
             unregisterLocationObserver(callbackDispatcher)
             unregisterRoutesObserver(callbackDispatcher)
             unregisterOffRouteObserver(callbackDispatcher)
-            unregisterNavigationSessionObserver(navigationSessionObserver)
+            unregisterNavigationSessionObserver(callbackDispatcher)
         }
     }
 
