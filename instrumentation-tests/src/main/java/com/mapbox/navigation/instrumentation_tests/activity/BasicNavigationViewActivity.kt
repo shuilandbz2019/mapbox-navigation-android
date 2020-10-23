@@ -2,32 +2,19 @@ package com.mapbox.navigation.instrumentation_tests.activity
 
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
-import com.mapbox.api.directions.v5.models.BannerInstructions
-import com.mapbox.mapboxsdk.location.modes.RenderMode
-import com.mapbox.navigation.core.MapboxNavigation
+import com.mapbox.mapboxsdk.Mapbox
 import com.mapbox.navigation.instrumentation_tests.R
-import com.mapbox.navigation.ui.NavigationViewOptions
-import com.mapbox.navigation.ui.OnNavigationReadyCallback
-import com.mapbox.navigation.ui.listeners.BannerInstructionsListener
-import com.mapbox.navigation.ui.listeners.NavigationListener
-import com.mapbox.navigation.ui.map.NavigationMapboxMap
+import com.mapbox.navigation.instrumentation_tests.utils.Utils
 import kotlinx.android.synthetic.main.activity_basic_navigation_view.*
 
-class BasicNavigationViewActivity :
-    AppCompatActivity(),
-    OnNavigationReadyCallback,
-    NavigationListener,
-    BannerInstructionsListener {
-
-    lateinit var navigationMapboxMap: NavigationMapboxMap
-    lateinit var mapboxNavigation: MapboxNavigation
+class BasicNavigationViewActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Mapbox.getInstance(this, Utils.getMapboxAccessToken(this))
         setContentView(R.layout.activity_basic_navigation_view)
 
         navigationView.onCreate(savedInstanceState)
-        navigationView.initialize(this)
     }
 
     override fun onLowMemory() {
@@ -75,39 +62,5 @@ class BasicNavigationViewActivity :
     override fun onRestoreInstanceState(savedInstanceState: Bundle) {
         super.onRestoreInstanceState(savedInstanceState)
         navigationView.onRestoreInstanceState(savedInstanceState)
-    }
-
-    override fun onNavigationReady(isRunning: Boolean) {
-        if (!isRunning && !::navigationMapboxMap.isInitialized) {
-            ifNonNull(navigationView.retrieveNavigationMapboxMap()) { navMapboxMap ->
-                this.navigationMapboxMap = navMapboxMap
-                this.navigationMapboxMap.updateLocationLayerRenderMode(RenderMode.NORMAL)
-                navigationView.retrieveMapboxNavigation()?.let { this.mapboxNavigation = it }
-
-                val optionsBuilder = NavigationViewOptions.builder(this)
-                optionsBuilder.navigationListener(this)
-                optionsBuilder.directionsRoute(route)
-                optionsBuilder.shouldSimulateRoute(true)
-                optionsBuilder.bannerInstructionsListener(this)
-                navigationView.startNavigation(optionsBuilder.build())
-            }
-        }
-    }
-
-    override fun willDisplay(instructions: BannerInstructions?): BannerInstructions? {
-        return instructions
-    }
-
-    override fun onNavigationRunning() {
-        // todo
-    }
-
-    override fun onNavigationFinished() {
-        finish()
-    }
-
-    override fun onCancelNavigation() {
-        navigationView.stopNavigation()
-        finish()
     }
 }

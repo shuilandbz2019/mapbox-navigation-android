@@ -10,7 +10,7 @@ import org.junit.runner.Description
 class MockWebServerRule : TestWatcher() {
 
     val webServer = MockWebServer()
-    val baseUrl: String by lazy { webServer.url("").toString() }
+    val baseUrl = webServer.url("").toString()
 
     /**
      * Cleared after each test.
@@ -34,7 +34,8 @@ class MockWebServerRule : TestWatcher() {
     }
 
     override fun starting(description: Description?) {
-        webServer.start()
+        // no need to start the webServer, already started implicitly when fetching baseUrl
+        // webServer.start()
     }
 
     override fun finished(description: Description?) {

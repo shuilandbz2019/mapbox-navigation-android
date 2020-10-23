@@ -17,13 +17,14 @@ import com.mapbox.navigation.instrumentation_tests.utils.http.MockDirectionsRequ
 import com.mapbox.navigation.instrumentation_tests.utils.idling.RouteProgressStateIdlingResource
 import com.mapbox.navigation.instrumentation_tests.utils.location.MockLocationReplayerRule
 import com.mapbox.navigation.instrumentation_tests.utils.readRawFileText
-import com.mapbox.navigation.instrumentation_tests.utils.route.routesRequestCallback
+import com.mapbox.navigation.instrumentation_tests.routesRequestCallback
+import com.mapbox.navigation.instrumentation_tests.utils.runOnMainSync
 import com.mapbox.navigation.testing.ui.BaseTest
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
-class SanityRouteTest : BaseTest<EmptyTestActivity>(EmptyTestActivity::class.java) {
+class SanityCoreRouteTest : BaseTest<EmptyTestActivity>(EmptyTestActivity::class.java) {
 
     @get:Rule
     val mapboxNavigationRule = MapboxNavigationRule()
@@ -71,7 +72,7 @@ class SanityRouteTest : BaseTest<EmptyTestActivity>(EmptyTestActivity::class.jav
         }
 
         // execute
-        uiDevice.run {
+        runOnMainSync {
             mockLocationUpdatesRule.pushLocationUpdate {
                 latitude = 38.894721
                 longitude = -77.031991
