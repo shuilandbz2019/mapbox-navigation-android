@@ -55,6 +55,7 @@ import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.InternalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
@@ -105,13 +106,13 @@ class MapboxNavigationTelemetryTest {
     @get:Rule
     var coroutineRule = MainCoroutineRule()
 
+    private lateinit var parentJob: Job
+    private lateinit var mainJobControl: JobControl
     private val context: Context = mockk(relaxed = true)
     private val applicationContext: Context = mockk(relaxed = true)
     private val mapboxNavigation = mockk<MapboxNavigation>(relaxed = true)
     private val navigationOptions: NavigationOptions = mockk(relaxed = true)
     private val callbackDispatcher: TelemetryLocationAndProgressDispatcher = mockk()
-    private val parentJob = SupervisorJob()
-    private val mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
     private val routeProgressChannel = Channel<RouteProgress>(Channel.CONFLATED)
     private val newRouteChannel = Channel<NewRoute>(Channel.CONFLATED)
     private val sessionStateChannel = Channel<NavigationSession.State>(Channel.CONFLATED)
@@ -140,6 +141,9 @@ class MapboxNavigationTelemetryTest {
 
     @Before
     fun setup() {
+        parentJob = SupervisorJob()
+        mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
+
         initMapboxMetricsReporter()
 
         mockkObject(ThreadController)
