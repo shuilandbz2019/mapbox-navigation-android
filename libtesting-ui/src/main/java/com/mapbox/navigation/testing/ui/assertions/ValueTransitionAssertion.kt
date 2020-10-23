@@ -1,12 +1,12 @@
-package com.mapbox.navigation.instrumentation_tests.utils.assertions
+package com.mapbox.navigation.testing.ui.assertions
 
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.ExpectedValue.Optional
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.ExpectedValue.Required
+import com.mapbox.navigation.testing.ui.assertions.ExpectedValue.Optional
+import com.mapbox.navigation.testing.ui.assertions.ExpectedValue.Required
 import org.junit.Assert
 
 abstract class ValueTransitionAssertion<T>(
     expectedBlock: ValueTransitionAssertion<T>.() -> Unit
-) {
+) : NavigationAssertion {
     private val actualValues = mutableListOf<T>()
     private val expectedValues = mutableListOf<ExpectedValue<T>>()
 
@@ -14,7 +14,7 @@ abstract class ValueTransitionAssertion<T>(
         expectedBlock()
     }
 
-    fun assert() {
+    override fun assert() {
         var minIndex = 0
         actualValues.forEach { state ->
             val minRequiredIndex =
@@ -37,17 +37,21 @@ abstract class ValueTransitionAssertion<T>(
                 null -> Assert.fail(
                     """$state shouldn't be returned right now. Expected are:
                     |$availableStates
+                    |Full list of transitions:
+                    |${actualValues}
                 """.trimMargin()
                 )
             }
         }
-        Assert.assertEquals(
+
+        check(expectedValues.indexOfLast { it is Required }
+            .let { if (it == -1) 0 else it } == minIndex) {
             """Not all of the expected states were matched. Below were not matched:
                |${expectedValues.drop(minIndex).filterIsInstance<Required<T>>()}
-            """.trimMargin(),
-            expectedValues.indexOfLast { it is Required }.let { if (it == -1) 0 else it },
-            minIndex
-        )
+               |Full list of transitions that were captured:
+               |${actualValues}
+            """.trimMargin()
+        }
     }
 
     fun requiredState(value: T) {

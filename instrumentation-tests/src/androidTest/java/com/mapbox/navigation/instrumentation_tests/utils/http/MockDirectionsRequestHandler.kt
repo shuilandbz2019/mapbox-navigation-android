@@ -8,10 +8,11 @@ import okhttp3.mockwebserver.RecordedRequest
 data class MockDirectionsRequestHandler(
     val profile: String,
     val jsonResponse: String,
-    val coordinates: List<Point>?
+    val expectedCoordinates: List<Point>?
 ) : MockRequestHandler {
     override fun handle(request: RecordedRequest): MockResponse? {
-        return if (request.path.startsWith("""/directions/v5/mapbox/$profile/${coordinates.parseCoordinates()}""")) {
+        val prefix = """/directions/v5/mapbox/$profile/${expectedCoordinates.parseCoordinates()}"""
+        return if (request.path.startsWith(prefix)) {
             MockResponse().setBody(jsonResponse)
         } else {
             null
