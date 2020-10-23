@@ -14,10 +14,7 @@ import com.mapbox.navigation.core.trip.session.RouteProgressObserver
 import com.mapbox.navigation.instrumentation_tests.activity.EmptyTestActivity
 import com.mapbox.navigation.instrumentation_tests.utils.MapboxNavigationRule
 import com.mapbox.navigation.instrumentation_tests.utils.Utils
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.RouteProgressStateAssertion
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.navAssert
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.optionalState
-import com.mapbox.navigation.instrumentation_tests.utils.assertions.requiredState
+import com.mapbox.navigation.instrumentation_tests.utils.assertions.RouteProgressStateTransitionAssertion
 import com.mapbox.navigation.instrumentation_tests.utils.http.MockDirectionsRequestHandler
 import com.mapbox.navigation.instrumentation_tests.utils.location.MockLocationReplayerRule
 import com.mapbox.navigation.instrumentation_tests.utils.route.routesRequestCallback
@@ -60,12 +57,10 @@ class SanityRouteTest : BaseTest<EmptyTestActivity>(EmptyTestActivity::class.jav
             )
         )
 
-        val statesVerification = RouteProgressStateAssertion(mapboxNavigation) {
-            listOf(
-                optionalState(RouteProgressState.ROUTE_INVALID),
-                requiredState(RouteProgressState.LOCATION_TRACKING),
-                requiredState(RouteProgressState.ROUTE_COMPLETE)
-            )
+        val statesVerification = RouteProgressStateTransitionAssertion(mapboxNavigation) {
+            optionalState(RouteProgressState.ROUTE_INVALID)
+            requiredState(RouteProgressState.LOCATION_TRACKING)
+            requiredState(RouteProgressState.ROUTE_COMPLETE)
         }
         uiDevice.run {
             mockLocationUpdatesRule.pushLocationUpdate {
@@ -93,6 +88,6 @@ class SanityRouteTest : BaseTest<EmptyTestActivity>(EmptyTestActivity::class.jav
         }
 
         Thread.sleep(20000)
-        navAssert(statesVerification)
+        statesVerification.assert()
     }
 }
