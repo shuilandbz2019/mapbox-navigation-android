@@ -24,7 +24,6 @@ internal interface TelemetryLocationAndProgressDispatcher :
 
     val lastLocation: Location?
     val routeProgress: RouteProgress?
-    val firstLocation: Location?
     val originalRoute: Deferred<DirectionsRoute>
 
     suspend fun clearLocationEventBuffer()

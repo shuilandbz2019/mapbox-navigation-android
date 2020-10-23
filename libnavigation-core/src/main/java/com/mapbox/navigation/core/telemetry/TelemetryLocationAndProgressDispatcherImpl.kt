@@ -38,7 +38,6 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
 
     override val lastLocation: Location?
         get() = locationsBuffer.lastOrNull()
-    override var firstLocation: Location? = null
     override var routeProgress: RouteProgress? = null
     override var originalRoute = CompletableDeferred<DirectionsRoute>()
     private val mutex = Mutex()
@@ -118,10 +117,6 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
         scope.launch {
             accumulateLocation(rawLocation)
             accumulatePostEventLocation(rawLocation)
-            if (firstLocation == null) {
-                logger?.d(TAG, Message("set first location"))
-                firstLocation = rawLocation
-            }
         }
     }
 

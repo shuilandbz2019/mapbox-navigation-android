@@ -69,8 +69,6 @@ import org.junit.Test
 class MapboxNavigationTelemetryTest {
 
     companion object {
-        private const val FIRST_LOCATION_LAT = 123.1
-        private const val FIRST_LOCATION_LON = 222.2
         private const val LAST_LOCATION_LAT = 55.5
         private const val LAST_LOCATION_LON = 88.8
 
@@ -108,6 +106,8 @@ class MapboxNavigationTelemetryTest {
 
     private lateinit var parentJob: Job
     private lateinit var mainJobControl: JobControl
+    private lateinit var logger: Logger
+
     private val context: Context = mockk(relaxed = true)
     private val applicationContext: Context = mockk(relaxed = true)
     private val mapboxNavigation = mockk<MapboxNavigation>(relaxed = true)
@@ -119,7 +119,6 @@ class MapboxNavigationTelemetryTest {
     private val routeProgress = mockk<RouteProgress>()
     private val originalRoute = mockk<DirectionsRoute>()
     private val routeFromProgress = mockk<DirectionsRoute>()
-    private val firstLocation = mockk<Location>()
     private val lastLocation = mockk<Location>()
     private val originalRouteOptions = mockk<RouteOptions>()
     private val progressRouteOptions = mockk<RouteOptions>()
@@ -137,22 +136,15 @@ class MapboxNavigationTelemetryTest {
     private val progressStepManeuverLocation = mockk<Point>()
     private val legProgress = mockk<RouteLegProgress>()
     private val stepProgress = mockk<RouteStepProgress>()
-    private val logger: Logger = mockk(relaxed = true)
 
     @Before
     fun setup() {
-        parentJob = SupervisorJob()
-        mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
-
         initMapboxMetricsReporter()
 
         mockkObject(ThreadController)
         mockkObject(MapboxMetricsReporter)
 
         every { MapboxMetricsReporter.addEvent(any()) } just Runs
-
-        every { ThreadController.getMainScopeAndRootJob() } returns mainJobControl
-        every { ThreadController.IODispatcher } returns coroutineRule.testDispatcher
 
         every { navigationOptions.applicationContext } returns applicationContext
         every { context.applicationContext } returns applicationContext
@@ -196,10 +188,7 @@ class MapboxNavigationTelemetryTest {
         every { originalRouteOptions.requestUuid() } returns
             ORIGINAL_ROUTE_OPTIONS_REQUEST_UUID
 
-        every { callbackDispatcher.firstLocation } returns firstLocation
         every { callbackDispatcher.lastLocation } returns lastLocation
-        every { firstLocation.latitude } returns FIRST_LOCATION_LAT
-        every { firstLocation.longitude } returns FIRST_LOCATION_LON
         every { lastLocation.latitude } returns LAST_LOCATION_LAT
         every { lastLocation.longitude } returns LAST_LOCATION_LON
 
@@ -326,8 +315,8 @@ class MapboxNavigationTelemetryTest {
         assertEquals(ORIGINAL_ROUTE_OPTIONS_REQUEST_UUID, departEvent.originalRequestIdentifier)
         assertEquals(ORIGINAL_ROUTE_GEOMETRY, departEvent.originalGeometry)
 
-        assertEquals(FIRST_LOCATION_LAT, departEvent.lat)
-        assertEquals(FIRST_LOCATION_LON, departEvent.lng)
+        assertEquals(LAST_LOCATION_LAT, departEvent.lat)
+        assertEquals(LAST_LOCATION_LON, departEvent.lng)
         assertEquals(false, departEvent.simulation)
 
         assertEquals(0, departEvent.rerouteCount)
@@ -666,6 +655,9 @@ class MapboxNavigationTelemetryTest {
     }
 
     private fun initTelemetry() {
+        mockDispatchers()
+        logger = mockk(relaxed = true)
+
         MapboxNavigationTelemetry.initialize(
             mapboxNavigation,
             navigationOptions,
@@ -674,6 +666,14 @@ class MapboxNavigationTelemetryTest {
             logger,
             callbackDispatcher
         )
+    }
+
+    private fun mockDispatchers() {
+        parentJob = SupervisorJob()
+        mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
+
+        every { ThreadController.getMainScopeAndRootJob() } returns mainJobControl
+        every { ThreadController.IODispatcher } returns coroutineRule.testDispatcher
     }
 
     private fun resetTelemetry() {

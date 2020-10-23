@@ -179,8 +179,7 @@ internal object MapboxNavigationTelemetry {
                 val departureEvent = NavigationDepartEvent(PhoneState(context))
                 populateNavigationEvent(
                     departureEvent,
-                    route,
-                    callbackDispatcher.firstLocation
+                    route
                 )
                 sendMetricEvent(departureEvent)
 
@@ -411,13 +410,11 @@ internal object MapboxNavigationTelemetry {
 
     private suspend fun populateNavigationEvent(
         navigationEvent: NavigationEvent,
-        route: DirectionsRoute? = null,
-        newLocation: Location? = null
+        route: DirectionsRoute? = null
     ) {
         logger?.d(TAG, Message("populateNavigationEvent"))
 
         val directionsRoute = route ?: callbackDispatcher.routeProgress?.route
-        val location = newLocation ?: callbackDispatcher.lastLocation
 
         navigationEvent.apply {
             sdkIdentifier = this@MapboxNavigationTelemetry.sdkIdentifier
@@ -439,9 +436,7 @@ internal object MapboxNavigationTelemetry {
                 }
             }
 
-            logger?.d(TAG, Message("originalRoute await"))
             callbackDispatcher.originalRoute.await().let {
-                logger?.d(TAG, Message("originalRoute ready"))
                 originalStepCount = obtainStepCount(it)
                 originalEstimatedDistance = it.distance().toInt()
                 originalEstimatedDuration = it.duration().toInt()
@@ -451,8 +446,8 @@ internal object MapboxNavigationTelemetry {
 
             locationEngine = locationEngineNameExternal
             tripIdentifier = obtainUniversalUniqueIdentifier()
-            lat = location?.latitude ?: 0.0
-            lng = location?.longitude ?: 0.0
+            lat = callbackDispatcher.lastLocation?.latitude ?: 0.0
+            lng = callbackDispatcher.lastLocation?.longitude ?: 0.0
             simulation = locationEngineNameExternal == MOCK_PROVIDER
             percentTimeInPortrait = lifecycleMonitor?.obtainPortraitPercentage() ?: 100
             percentTimeInForeground = lifecycleMonitor?.obtainForegroundPercentage() ?: 100
