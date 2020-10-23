@@ -32,6 +32,7 @@ import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
 import com.mapbox.navigation.core.telemetry.events.NavigationArriveEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationCancelEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationDepartEvent
+import com.mapbox.navigation.core.telemetry.events.NavigationEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationFeedbackEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationRerouteEvent
 import com.mapbox.navigation.metrics.MapboxMetricsReporter
@@ -524,51 +525,14 @@ class MapboxNavigationTelemetryTest {
         newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
 
-        verify(exactly = 8) {
-            logger.d(MapboxNavigationTelemetry.TAG, Message("populateNavigationEvent"))
-        }
+        verifyMessageLogged("populateNavigationEvent", 8)
 
         parentJob.cancel()
 
-        verify(exactly = 1) {
-            logger.d(
-                MapboxNavigationTelemetry.TAG,
-                Message(
-                    "class com.mapbox.navigation.core.telemetry.events.NavigationDepartEvent " +
-                        "event sent"
-                )
-            )
-        }
-
-        verify(exactly = 1) {
-            logger.d(
-                MapboxNavigationTelemetry.TAG,
-                Message(
-                    "class com.mapbox.navigation.core.telemetry.events.NavigationRerouteEvent " +
-                        "event sent"
-                )
-            )
-        }
-
-        verify(exactly = 6) {
-            logger.d(
-                MapboxNavigationTelemetry.TAG,
-                Message(
-                    "class com.mapbox.navigation.core.telemetry.events.NavigationFeedbackEvent " +
-                        "event sent"
-                )
-            )
-        }
-
-        verify(exactly = 1) {
-            logger.d(
-                MapboxNavigationTelemetry.TAG,
-                Message(
-                    "class com.mapbox.navigation.core.telemetry.events.NavigationCancelEvent " +
-                        "event sent"
-                )
-            )
-        }
+        verifyEventSentLogged(NavigationDepartEvent::class.java, 1)
+        verifyEventSentLogged(NavigationRerouteEvent::class.java, 1)
+        verifyEventSentLogged(NavigationFeedbackEvent::class.java, 6)
+        verifyEventSentLogged(NavigationCancelEvent::class.java, 1)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -583,6 +547,16 @@ class MapboxNavigationTelemetryTest {
         assertTrue(events[8] is NavigationFeedbackEvent)
         assertTrue(events[9] is NavigationCancelEvent)
         assertEquals(10, events.size)
+    }
+
+    private fun verifyEventSentLogged(clazz: Class<out NavigationEvent>, count: Int) {
+        val message = "class com.mapbox.navigation.core.telemetry.events.${clazz.simpleName} " +
+            "event sent"
+        verifyMessageLogged(message, count)
+    }
+
+    private fun verifyMessageLogged(message: String, count: Int) {
+        verify(exactly = count) { logger.d(MapboxNavigationTelemetry.TAG, Message(message)) }
     }
 
     @Test
