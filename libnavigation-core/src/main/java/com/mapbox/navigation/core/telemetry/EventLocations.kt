@@ -5,9 +5,9 @@ import android.location.Location
 internal class EventLocations(
     private val preEventLocations: List<Location>,
     private val postEventLocations: MutableList<Location>,
-    private val onBufferFull: suspend (List<Location>, List<Location>) -> Unit
+    private val onBufferFull: (List<Location>, List<Location>) -> Unit
 ) {
-    suspend fun onBufferFull() {
+    fun onBufferFull() {
         onBufferFull(preEventLocations, postEventLocations)
     }
 

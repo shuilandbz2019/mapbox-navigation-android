@@ -7,20 +7,16 @@ import com.mapbox.base.common.logger.model.Message
 import com.mapbox.navigation.base.trip.model.RouteProgress
 import com.mapbox.navigation.core.NavigationSession.State
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
+import com.mapbox.navigation.core.NavigationSession.State.FREE_DRIVE
 import com.mapbox.navigation.core.NavigationSession.State.IDLE
 import com.mapbox.navigation.core.telemetry.MapboxNavigationTelemetry.TAG
 import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
 import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.Collections.synchronizedList
 
 internal class TelemetryLocationAndProgressDispatcherImpl(
-    private val scope: CoroutineScope,
     private val logger: Logger?
 ) :
     TelemetryLocationAndProgressDispatcher {
@@ -40,26 +36,23 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
         get() = locationsBuffer.lastOrNull()
     override var routeProgress: RouteProgress? = null
     override var originalRoute = CompletableDeferred<DirectionsRoute>()
-    private val mutex = Mutex()
     private var needHandleReroute = false
     private var sessionState: State = IDLE
 
-    private suspend fun accumulatePostEventLocation(location: Location) {
-        mutex.withLock {
-            val iterator = eventsLocationsBuffer.iterator()
-            while (iterator.hasNext()) {
-                iterator.next().let {
-                    it.addPostEventLocation(location)
-                    if (it.postEventLocationsSize() >= LOCATION_BUFFER_MAX_SIZE) {
-                        it.onBufferFull()
-                        iterator.remove()
-                    }
+    private fun accumulatePostEventLocation(location: Location) {
+        val iterator = eventsLocationsBuffer.iterator()
+        while (iterator.hasNext()) {
+            iterator.next().let {
+                it.addPostEventLocation(location)
+                if (it.postEventLocationsSize() >= LOCATION_BUFFER_MAX_SIZE) {
+                    it.onBufferFull()
+                    iterator.remove()
                 }
             }
         }
     }
 
-    private suspend fun flushLocationEventBuffer() {
+    private fun flushLocationEventBuffer() {
         logger?.d(
             TAG,
             Message(
@@ -79,7 +72,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun accumulatePostEventLocations(
-        onBufferFull: suspend (List<Location>, List<Location>) -> Unit
+        onBufferFull: (List<Location>, List<Location>) -> Unit
     ) {
         eventsLocationsBuffer.add(
             EventLocations(
@@ -90,7 +83,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
         )
     }
 
-    override suspend fun clearLocationEventBuffer() {
+    override fun clearLocationEventBuffer() {
         flushLocationEventBuffer()
         eventsLocationsBuffer.clear()
     }
@@ -101,6 +94,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun resetOriginalRoute(route: DirectionsRoute?) {
+        logger?.d(TAG, Message("resetOriginalRoute"))
         originalRoute = if (route != null) {
             CompletableDeferred(route)
         } else {
@@ -114,10 +108,8 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onRawLocationChanged(rawLocation: Location) {
-        scope.launch {
-            accumulateLocation(rawLocation)
-            accumulatePostEventLocation(rawLocation)
-        }
+        accumulateLocation(rawLocation)
+        accumulatePostEventLocation(rawLocation)
     }
 
     override fun onEnhancedLocationChanged(enhancedLocation: Location, keyPoints: List<Location>) {
@@ -153,7 +145,7 @@ internal class TelemetryLocationAndProgressDispatcherImpl(
     }
 
     override fun onNavigationSessionStateChanged(navigationSession: State) {
-        logger?.d(TAG, Message("Navigation state is $navigationSession"))
+        logger?.d(TAG, Message("session state is $navigationSession"))
         sessionState = navigationSession
         sessionStateChannel.offer(navigationSession)
     }

@@ -391,7 +391,7 @@ class MapboxNavigationTelemetryTest {
 
     @Test
     fun rerouteEvent_sent_on_offRoute() = runBlocking {
-        val actionSlot = slot<suspend (List<Location>, List<Location>) -> Unit>()
+        val actionSlot = slot<(List<Location>, List<Location>) -> Unit>()
         every { callbackDispatcher.accumulatePostEventLocations(capture(actionSlot)) } just Runs
 
         initTelemetry()
@@ -448,7 +448,7 @@ class MapboxNavigationTelemetryTest {
 
     @Test
     fun feedback_and_reroute_events_not_sent_on_arrival() = runBlocking {
-        val actions = mutableListOf<suspend (List<Location>, List<Location>) -> Unit>()
+        val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
         every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
         every { routeProgress.currentState } returns ROUTE_COMPLETE
         coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
@@ -474,7 +474,7 @@ class MapboxNavigationTelemetryTest {
 
     @Test
     fun feedback_and_reroute_events_sent_on_free_drive() = runBlocking {
-        val actions = mutableListOf<suspend (List<Location>, List<Location>) -> Unit>()
+        val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
         every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
         coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
             actions.forEach { it.invoke(listOf(), listOf()) }
@@ -508,7 +508,7 @@ class MapboxNavigationTelemetryTest {
 
     @Test
     fun feedback_and_reroute_events_sent_on_master_job_canceled() = runBlocking {
-        val actions = mutableListOf<suspend (List<Location>, List<Location>) -> Unit>()
+        val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
         every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
         coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
             actions.forEach { it.invoke(listOf(), listOf()) }

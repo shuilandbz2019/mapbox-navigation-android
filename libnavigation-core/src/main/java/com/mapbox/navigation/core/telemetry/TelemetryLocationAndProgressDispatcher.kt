@@ -26,11 +26,11 @@ internal interface TelemetryLocationAndProgressDispatcher :
     val routeProgress: RouteProgress?
     val originalRoute: Deferred<DirectionsRoute>
 
-    suspend fun clearLocationEventBuffer()
+    fun clearLocationEventBuffer()
     fun resetOriginalRoute(route: DirectionsRoute? = null)
     fun resetRouteProgress()
 
-    fun accumulatePostEventLocations(onBufferFull: suspend (List<Location>, List<Location>) -> Unit)
+    fun accumulatePostEventLocations(onBufferFull: (List<Location>, List<Location>) -> Unit)
 }
 
 internal sealed class NewRoute {

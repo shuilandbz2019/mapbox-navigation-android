@@ -131,7 +131,7 @@ internal object MapboxNavigationTelemetry {
         jobControl: JobControl,
         logger: Logger?,
         callbackDispatcher: TelemetryLocationAndProgressDispatcher =
-            TelemetryLocationAndProgressDispatcherImpl(jobControl.scope, logger)
+            TelemetryLocationAndProgressDispatcherImpl(logger)
     ) {
         this.logger = logger
         this.callbackDispatcher = callbackDispatcher
