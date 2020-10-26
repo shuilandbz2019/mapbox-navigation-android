@@ -204,7 +204,6 @@ class MapboxNavigation(
                 this,
                 navigationOptions,
                 MapboxMetricsReporter,
-                ThreadController.getMainScopeAndRootJob(),
                 logger
             )
         }

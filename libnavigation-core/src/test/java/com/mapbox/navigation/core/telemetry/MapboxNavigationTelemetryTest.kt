@@ -27,8 +27,6 @@ import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.NavigationSession
 import com.mapbox.navigation.core.NavigationSession.State.ACTIVE_GUIDANCE
 import com.mapbox.navigation.core.NavigationSession.State.FREE_DRIVE
-import com.mapbox.navigation.core.telemetry.NewRoute.ExternalRoute
-import com.mapbox.navigation.core.telemetry.NewRoute.RerouteRoute
 import com.mapbox.navigation.core.telemetry.events.NavigationArriveEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationCancelEvent
 import com.mapbox.navigation.core.telemetry.events.NavigationDepartEvent
@@ -53,12 +51,8 @@ import io.mockk.verify
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertNotSame
 import junit.framework.TestCase.assertTrue
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.InternalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -105,7 +99,7 @@ class MapboxNavigationTelemetryTest {
     @get:Rule
     var coroutineRule = MainCoroutineRule()
 
-    private lateinit var parentJob: Job
+   // private lateinit var parentJob: Job
     private lateinit var mainJobControl: JobControl
     private lateinit var logger: Logger
 
@@ -113,10 +107,7 @@ class MapboxNavigationTelemetryTest {
     private val applicationContext: Context = mockk(relaxed = true)
     private val mapboxNavigation = mockk<MapboxNavigation>(relaxed = true)
     private val navigationOptions: NavigationOptions = mockk(relaxed = true)
-    private val callbackDispatcher: TelemetryLocationAndProgressDispatcher = mockk()
-    private val routeProgressChannel = Channel<RouteProgress>(Channel.CONFLATED)
-    private val newRouteChannel = Channel<NewRoute>(Channel.CONFLATED)
-    private val sessionStateChannel = Channel<NavigationSession.State>(Channel.CONFLATED)
+    private val callbackDispatcher: LocationsCollector = mockk()
     private val routeProgress = mockk<RouteProgress>()
     private val originalRoute = mockk<DirectionsRoute>()
     private val routeFromProgress = mockk<DirectionsRoute>()
@@ -171,7 +162,7 @@ class MapboxNavigationTelemetryTest {
         } returns activityManager
         every { activityManager.runningAppProcesses } returns listOf()
 
-        coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(originalRoute)
+        //coEvery { originalRoute } returns CompletableDeferred(originalRoute)
         every { originalRoute.geometry() } returns ORIGINAL_ROUTE_GEOMETRY
         every { originalRoute.legs() } returns originalRouteLegs
         every { originalRoute.distance() } returns ORIGINAL_ROUTE_DISTANCE
@@ -193,7 +184,7 @@ class MapboxNavigationTelemetryTest {
         every { lastLocation.latitude } returns LAST_LOCATION_LAT
         every { lastLocation.longitude } returns LAST_LOCATION_LON
 
-        every { callbackDispatcher.routeProgress } returns routeProgress
+       // every { routeProgress } returns routeProgress
         every { routeProgress.currentLegProgress } returns legProgress
         every { routeProgress.distanceRemaining } returns ROUTE_PROGRESS_DISTANCE_REMAINING
         every { routeProgress.durationRemaining } returns ROUTE_PROGRESS_DURATION_REMAINING
@@ -225,13 +216,13 @@ class MapboxNavigationTelemetryTest {
         every { stepProgress.distanceRemaining } returns 0f
         every { stepProgress.durationRemaining } returns 0.0
 
-        every { callbackDispatcher.routeProgressChannel } returns routeProgressChannel
-        every { callbackDispatcher.newRouteChannel } returns newRouteChannel
-        every { callbackDispatcher.resetRouteProgress() } just Runs
-        every { callbackDispatcher.resetOriginalRoute(any()) } just Runs
-        coEvery { callbackDispatcher.clearLocationEventBuffer() } just Runs
+       // every { routeProgressChannel } returns routeProgressChannel
+//        every { newRouteChannel } returns newRouteChannel
+       // every { resetRouteProgress() } just Runs
+        //every { resetOriginalRoute(any()) } just Runs
+        coEvery { callbackDispatcher.flushBuffers() } just Runs
 
-        every { callbackDispatcher.sessionStateChannel } returns sessionStateChannel
+//        every { sessionStateChannel } returns sessionStateChannel
     }
 
     /**
@@ -264,7 +255,7 @@ class MapboxNavigationTelemetryTest {
 
     @After
     fun cleanUp() {
-        parentJob.cancel()
+       // parentJob.cancel()
 
         unmockkObject(ThreadController)
         unmockkObject(MapboxMetricsReporter)
@@ -291,7 +282,7 @@ class MapboxNavigationTelemetryTest {
         every { routeProgress.route } returns originalRoute
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+      //  sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         val events = mutableListOf<MetricEvent>()
         verify(exactly = 2) { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -335,8 +326,8 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun cancelEvent_sent_on_active_guidance_stop() = runBlocking {
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
-        sessionStateChannel.offer(FREE_DRIVE)
+        //sessionStateChannel.offer(ACTIVE_GUIDANCE)
+        //sessionStateChannel.offer(FREE_DRIVE)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -344,8 +335,8 @@ class MapboxNavigationTelemetryTest {
         assertTrue(events[1] is NavigationDepartEvent)
         assertTrue(events[2] is NavigationCancelEvent)
         assertEquals(3, events.size)
-        coVerify { callbackDispatcher.clearLocationEventBuffer() }
-        verify { callbackDispatcher.resetOriginalRoute(null) }
+        coVerify { callbackDispatcher.flushBuffers() }
+        //verify { callbackDispatcher.resetOriginalRoute(null) }
     }
 
     @Test
@@ -353,9 +344,9 @@ class MapboxNavigationTelemetryTest {
         every { routeProgress.currentState } returns ROUTE_COMPLETE
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+       // sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
-        routeProgressChannel.offer(routeProgress)
+       // routeProgressChannel.offer(routeProgress)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -368,10 +359,11 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun cancel_and_depart_events_sent_on_external_route() = runBlocking {
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+       // sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
-        coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(routeFromProgress)
-        newRouteChannel.offer(ExternalRoute(routeFromProgress))
+        //coEvery { callbackDispatcher.originalRoute } returns CompletableDeferred(routeFromProgress)
+        MapboxNavigationTelemetry.onRoutesChanged(listOf(routeFromProgress))
+      //  newRouteChannel.offer(ExternalRoute(routeFromProgress))
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -392,12 +384,12 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun rerouteEvent_sent_on_offRoute() = runBlocking {
         val actionSlot = slot<(List<Location>, List<Location>) -> Unit>()
-        every { callbackDispatcher.accumulatePostEventLocations(capture(actionSlot)) } just Runs
+        every { callbackDispatcher.collectLocations(capture(actionSlot)) } just Runs
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+      //  sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
-        newRouteChannel.offer(RerouteRoute(routeFromProgress))
+    //    newRouteChannel.offer(RerouteRoute(routeFromProgress))
 
         actionSlot.captured.invoke(listOf(), listOf())
 
@@ -449,20 +441,20 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun feedback_and_reroute_events_not_sent_on_arrival() = runBlocking {
         val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
-        every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
+        every { callbackDispatcher.collectLocations(capture(actions)) } just Runs
         every { routeProgress.currentState } returns ROUTE_COMPLETE
-        coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
+        coEvery { callbackDispatcher.flushBuffers() } coAnswers {
             actions.forEach { it.invoke(listOf(), listOf()) }
         }
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+       // sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         postUserFeedback()
-        newRouteChannel.offer(RerouteRoute(originalRoute))
+      //  newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
 
-        routeProgressChannel.offer(routeProgress)
+       // routeProgressChannel.offer(routeProgress)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -475,22 +467,22 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun feedback_and_reroute_events_sent_on_free_drive() = runBlocking {
         val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
-        every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
-        coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
+        every { callbackDispatcher.collectLocations(capture(actions)) } just Runs
+        coEvery { callbackDispatcher.flushBuffers() } coAnswers {
             actions.forEach { it.invoke(listOf(), listOf()) }
         }
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+        //sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         postUserFeedback()
-        newRouteChannel.offer(RerouteRoute(originalRoute))
+       // newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
         postUserFeedback()
         postUserFeedback()
         postUserFeedback()
 
-        sessionStateChannel.offer(FREE_DRIVE)
+        //sessionStateChannel.offer(FREE_DRIVE)
 
         val events = mutableListOf<MetricEvent>()
         verify { MapboxMetricsReporter.addEvent(capture(events)) }
@@ -509,25 +501,25 @@ class MapboxNavigationTelemetryTest {
     @Test
     fun feedback_and_reroute_events_sent_on_master_job_canceled() = runBlocking {
         val actions = mutableListOf<(List<Location>, List<Location>) -> Unit>()
-        every { callbackDispatcher.accumulatePostEventLocations(capture(actions)) } just Runs
-        coEvery { callbackDispatcher.clearLocationEventBuffer() } coAnswers {
+        every { callbackDispatcher.collectLocations(capture(actions)) } just Runs
+        coEvery { callbackDispatcher.flushBuffers() } coAnswers {
             actions.forEach { it.invoke(listOf(), listOf()) }
         }
 
         initTelemetry()
-        sessionStateChannel.offer(ACTIVE_GUIDANCE)
+        //sessionStateChannel.offer(ACTIVE_GUIDANCE)
 
         postUserFeedback()
         postUserFeedback()
         postUserFeedback()
         postUserFeedback()
         postUserFeedback()
-        newRouteChannel.offer(RerouteRoute(originalRoute))
+     //   newRouteChannel.offer(RerouteRoute(originalRoute))
         postUserFeedback()
 
         verifyMessageLogged("populateNavigationEvent", 8)
 
-        parentJob.cancel()
+        //parentJob.cancel()
 
         verifyEventSentLogged(NavigationDepartEvent::class.java, 1)
         verifyEventSentLogged(NavigationRerouteEvent::class.java, 1)
@@ -636,15 +628,13 @@ class MapboxNavigationTelemetryTest {
             mapboxNavigation,
             navigationOptions,
             MapboxMetricsReporter,
-            mainJobControl,
-            logger,
-            callbackDispatcher
+            logger
         )
     }
 
     private fun mockDispatchers() {
-        parentJob = SupervisorJob()
-        mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
+      //  parentJob = SupervisorJob()
+      //  mainJobControl = JobControl(parentJob, coroutineRule.coroutineScope)
 
         every { ThreadController.getMainScopeAndRootJob() } returns mainJobControl
         every { ThreadController.IODispatcher } returns coroutineRule.testDispatcher
