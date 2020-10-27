@@ -7,8 +7,9 @@ import com.mapbox.navigation.core.MapboxNavigation
 import com.mapbox.navigation.core.arrival.ArrivalObserver
 import com.mapbox.navigation.testing.ui.idling.NavigationIdlingResource
 
-class ArrivalIdlingResource(mapboxNavigation: MapboxNavigation? = null) :
-    NavigationIdlingResource() {
+class ArrivalIdlingResource(
+    mapboxNavigation: MapboxNavigation? = null
+) : NavigationIdlingResource(), ArrivalObserver {
 
     private var arrived = false
     private var callback: IdlingResource.ResourceCallback? = null
@@ -37,7 +38,11 @@ class ArrivalIdlingResource(mapboxNavigation: MapboxNavigation? = null) :
         }
     }
 
-    fun arrived() {
+    override fun onNextRouteLegStart(routeLegProgress: RouteLegProgress) {
+        // do nothing
+    }
+
+    override fun onFinalDestinationArrival(routeProgress: RouteProgress) {
         arrived = true
         callback?.onTransitionToIdle()
     }

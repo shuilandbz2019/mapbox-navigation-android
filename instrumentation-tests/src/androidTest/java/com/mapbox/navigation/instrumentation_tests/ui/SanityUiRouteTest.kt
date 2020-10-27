@@ -49,9 +49,7 @@ class SanityUiRouteTest :
             activity.navigationView.startNavigation(
                 NavigationViewOptions.builder(activity)
                     .directionsRoute(route)
-                    .arrivalObserver(
-                        arrivalObserver(null, { arrivalIdlingResource.arrived() })
-                    )
+                    .arrivalObserver(arrivalIdlingResource)
                     .voiceInstructionLoaderBaseUrl(mockWebServerRule.baseUrl)
                     .build()
             )

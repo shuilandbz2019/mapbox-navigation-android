@@ -1,6 +1,7 @@
 package com.mapbox.navigation.instrumentation_tests.utils.routes
 
 import android.content.Context
+import com.mapbox.api.directions.v5.models.BannerInstructions
 import com.mapbox.api.directions.v5.models.DirectionsResponse
 import com.mapbox.geojson.Point
 import com.mapbox.navigation.instrumentation_tests.R
@@ -35,7 +36,12 @@ object MockRoutesProvider {
                     requestDetails = """%3Cspeak%3E%3Camazon:effect%20name=%22drc%22%3E%3Cprosody%20rate=%221.08%22%3EYou%20have%20arrived%20at%20your%20destination.%3C%2Fprosody%3E%3C%2F"""
                 )
             ),
-            coordinates
+            coordinates,
+            listOf(
+                BannerInstructions.fromJson("""{"distanceAlongGeometry":80.35600280761719,"primary":{"text":"Pennsylvania Avenue Northwest","components":[{"text":"Pennsylvania Avenue Northwest","type":"text","active":false}],"type":"turn","modifier":"right"}}"""),
+                BannerInstructions.fromJson("""{"distanceAlongGeometry":93.83116912841797,"primary":{"text":"You will arrive at your destination","components":[{"text":"You will arrive at your destination","type":"text","active":false}],"type":"arrive","modifier":"straight"}}"""),
+                BannerInstructions.fromJson("""{"distanceAlongGeometry":79.16699981689453,"primary":{"text":"You have arrived at your destination","components":[{"text":"You have arrived at your destination","type":"text","active":false}],"type":"arrive","modifier":"straight"}}""")
+            )
         )
     }
 }
