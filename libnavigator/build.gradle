@@ -50,12 +50,7 @@ dependencies {
     implementation dependenciesList.mapboxAndroidCommon
 
     // Network
-    implementation(dependenciesList.okhttp) {
-        force = true
-    }
-    implementation(dependenciesList.okhttpInterceptor) {
-        force = true
-    }
+    implementation dependenciesList.okhttpInterceptor
 
     //ktlint
     ktlint dependenciesList.ktlint
