@@ -267,6 +267,14 @@ class MapboxNavigation(
     }
 
     /**
+     * Clears the location and route for the navigator.
+     */
+    fun resetTripSession() {
+        tripSession.route = null
+        navigator.reset()
+    }
+
+    /**
      * Return the current [TripSession]'s state.
      * The state is [TripSessionState.STARTED] when the session is active, running a foreground service and
      * requesting and returning location updates.
@@ -347,13 +355,7 @@ class MapboxNavigation(
         tripSession.unregisterAllRouteAlertsObservers()
         tripSession.unregisterAllEHorizonObservers()
         tripSession.route = null
-
-        // TODO replace this with a destroy when nav-native has a destructor
-        navigator.create(
-            navigationOptions.deviceProfile,
-            navigatorConfig,
-            createTilesConfig()
-        )
+        navigator.reset()
 
         navigationSession.unregisterAllNavigationSessionStateObservers()
         fasterRouteController.stop()

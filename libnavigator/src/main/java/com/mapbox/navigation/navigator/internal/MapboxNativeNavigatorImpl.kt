@@ -64,6 +64,10 @@ object MapboxNativeNavigatorImpl : MapboxNativeNavigator {
         return this
     }
 
+    override fun reset() {
+        navigator?.resetRideSession()
+    }
+
     /**
      * Passes in the current raw location of the user.
      *
