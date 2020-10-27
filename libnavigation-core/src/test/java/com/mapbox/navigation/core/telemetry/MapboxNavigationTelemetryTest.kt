@@ -120,6 +120,7 @@ class MapboxNavigationTelemetryTest {
 
         mockLocationCollector()
         mockOriginalRoute()
+        mockRouteProgress()
     }
 
     private fun mockOriginalRoute() {
@@ -233,6 +234,7 @@ class MapboxNavigationTelemetryTest {
         initTelemetry()
         updateSessionState(ACTIVE_GUIDANCE)
         updateRoute(originalRoute)
+        updateRouteProgress(routeProgress)
     }
 
     private fun updateSessionState(state: NavigationSession.State) {
@@ -334,6 +336,7 @@ class MapboxNavigationTelemetryTest {
 
         baseInitialization()
         updateRoute(anotherRoute)
+        updateRouteProgress(routeProgress)
 
         val events = captureAndVerifyMetricsReporter(exactly = 4)
         assertTrue(events[0] is NavigationAppUserTurnstileEvent)
@@ -351,6 +354,7 @@ class MapboxNavigationTelemetryTest {
 
         baseInitialization()
         updateRoute(anotherRoute)
+        updateRouteProgress(routeProgress)
 
         val firstDepart = events[1] as NavigationDepartEvent
         val secondDepart = events[3] as NavigationDepartEvent
@@ -462,20 +466,6 @@ class MapboxNavigationTelemetryTest {
         baseInitialization()
 
         val departEvent = events[1] as NavigationDepartEvent
-
-        // when session is started we reset current routeProgress.
-        // so, when we populate depart event routeProgress is null
-        // and we don't get any properties from it
-        assertEquals(0, departEvent.stepIndex)
-        assertEquals(0, departEvent.distanceRemaining)
-        assertEquals(0, departEvent.durationRemaining)
-        assertEquals(0, departEvent.distanceCompleted)
-        assertEquals(null, departEvent.geometry)
-        assertEquals(null, departEvent.profile)
-        assertEquals(0, departEvent.legIndex)
-        assertEquals(0, departEvent.stepCount)
-        assertEquals(0, departEvent.legCount)
-
         checkOriginalParams(departEvent, originalRoute)
     }
 
@@ -494,17 +484,6 @@ class MapboxNavigationTelemetryTest {
         locationsCollector.flushBuffers()
 
         val rerouteEvent = events[2] as NavigationRerouteEvent
-
-        assertEquals(STEP_INDEX, rerouteEvent.stepIndex)
-        assertEquals(ROUTE_PROGRESS_DISTANCE_REMAINING.toInt(), rerouteEvent.distanceRemaining)
-        assertEquals(ROUTE_PROGRESS_DURATION_REMAINING.toInt(), rerouteEvent.durationRemaining)
-        assertEquals(ROUTE_PROGRESS_DISTANCE_TRAVELED.toInt(), rerouteEvent.distanceCompleted)
-        assertEquals(ANOTHER_ROUTE_GEOMETRY, rerouteEvent.geometry)
-        assertEquals(ANOTHER_ROUTE_OPTIONS_PROFILE, rerouteEvent.profile)
-        assertEquals(ANOTHER_ROUTE_ROUTE_INDEX.toInt(), rerouteEvent.legIndex)
-        assertEquals(obtainStepCount(anotherRoute), rerouteEvent.stepCount)
-        assertEquals(anotherRoute.legs()?.size, rerouteEvent.legCount)
-
         checkOriginalParams(rerouteEvent, anotherRoute)
     }
 
@@ -519,6 +498,19 @@ class MapboxNavigationTelemetryTest {
         assertEquals(locationsCollector.lastLocation?.longitude, event.lng)
         assertEquals(false, event.simulation)
         assertEquals(7, event.eventVersion)
+
+        assertEquals(
+            routeProgress.currentLegProgress?.currentStepProgress?.stepIndex,
+            event.stepIndex
+        )
+        assertEquals(routeProgress.distanceRemaining.toInt(), event.distanceRemaining)
+        assertEquals(routeProgress.durationRemaining.toInt(), event.durationRemaining)
+        assertEquals(routeProgress.distanceTraveled.toInt(), event.distanceCompleted)
+        assertEquals(currentRoute.geometry(), event.geometry)
+        assertEquals(currentRoute.routeOptions()?.profile(), event.profile)
+        assertEquals(currentRoute.routeIndex()?.toInt(), event.legIndex)
+        assertEquals(obtainStepCount(currentRoute), event.stepCount)
+        assertEquals(currentRoute.legs()?.size, event.legCount)
 
         if (event is NavigationRerouteEvent) {
             assertEquals(anotherRoute.distance().toInt(), event.newDistanceRemaining)

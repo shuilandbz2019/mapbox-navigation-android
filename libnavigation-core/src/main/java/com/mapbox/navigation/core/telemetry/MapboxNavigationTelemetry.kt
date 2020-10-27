@@ -142,13 +142,17 @@ internal object MapboxNavigationTelemetry :
 
         registerListeners(mapboxNavigation)
         postTurnstileEvent()
-        this.logger?.d(TAG, Message("Valid initialization"))
+        log("Valid initialization")
+    }
+
+    private fun sendEventsFromPreviousSession() {
+        log("sendEventsFromPreviousSession")
+        locationsCollector.flushBuffers()
+        resetRouteProgress()
     }
 
     private fun sessionStart() {
-        logger?.d(TAG, Message("sessionStart"))
-        locationsCollector.flushBuffers()
-        resetRouteProgress()
+        log("sessionStart")
         originalRoute?.let { route ->
             dynamicValues.run {
                 sessionId = obtainUniversalUniqueIdentifier()
@@ -165,9 +169,11 @@ internal object MapboxNavigationTelemetry :
 
     private fun sessionStop() {
         if (dynamicValues.sessionStarted) {
-            logger?.d(TAG, Message("sessionStop"))
+            log("sessionStop")
             handleSessionCanceled()
             dynamicValues.reset()
+            resetOriginalRoute()
+            resetRouteProgress()
         }
     }
 
@@ -176,13 +182,10 @@ internal object MapboxNavigationTelemetry :
             logger?.d(TAG, Message("${event::class.java} event sent"))
             metricsReporter.addEvent(event)
         } else {
-            logger?.d(
-                TAG,
-                Message(
-                    "${event::class.java} not sent. Caused by: " +
-                        "Navigation Session started: ${dynamicValues.sessionStarted}. " +
-                        "Route exists: ${originalRoute != null}"
-                )
+            log(
+                "${event::class.java} not sent. Caused by: " +
+                    "Navigation Session started: ${dynamicValues.sessionStarted}. " +
+                    "Route exists: ${originalRoute != null}"
             )
         }
     }
@@ -200,7 +203,7 @@ internal object MapboxNavigationTelemetry :
     }
 
     private fun handleReroute(newRoute: DirectionsRoute) {
-        logger?.d(TAG, Message("handleReroute"))
+        log("handleReroute")
         dynamicValues.run {
             val currentTime = Time.SystemImpl.millis()
             timeSinceLastReroute = (currentTime - timeOfReroute).toInt()
@@ -229,13 +232,6 @@ internal object MapboxNavigationTelemetry :
         }
     }
 
-    private fun handleExternalRoute(route: DirectionsRoute) {
-        logger?.d(TAG, Message("handleExternalRoute"))
-        sessionStop()
-        resetOriginalRoute(route)
-        sessionStart()
-    }
-
     fun postUserFeedback(
         @FeedbackEvent.Type feedbackType: String,
         description: String,
@@ -245,7 +241,7 @@ internal object MapboxNavigationTelemetry :
         appMetadata: AppMetadata?
     ) {
         if (dynamicValues.sessionStarted) {
-            logger?.d(TAG, Message("collect post event locations for user feedback"))
+            log("collect post event locations for user feedback")
             val feedbackEvent = NavigationFeedbackEvent(
                 PhoneState(context),
                 MetricsRouteProgress(routeProgress)
@@ -260,7 +256,7 @@ internal object MapboxNavigationTelemetry :
             populateNavigationEvent(feedbackEvent)
 
             locationsCollector.collectLocations { preEventBuffer, postEventBuffer ->
-                logger?.d(TAG, Message("locations ready"))
+                log("locations ready")
                 feedbackEvent.apply {
                     locationsBefore = preEventBuffer.toTelemetryLocations()
                     locationsAfter = postEventBuffer.toTelemetryLocations()
@@ -271,7 +267,7 @@ internal object MapboxNavigationTelemetry :
     }
 
     private fun handleSessionCanceled() {
-        logger?.d(TAG, Message("handleSessionCanceled"))
+        log("handleSessionCanceled")
         locationsCollector.flushBuffers()
 
         val cancelEvent = NavigationCancelEvent(PhoneState(context))
@@ -293,7 +289,7 @@ internal object MapboxNavigationTelemetry :
 
     private fun processArrival() {
         if (dynamicValues.sessionStarted && dynamicValues.handleArrive) {
-            logger?.d(TAG, Message("you have arrived"))
+            log("you have arrived")
 
             dynamicValues.run {
                 tripIdentifier = obtainUniversalUniqueIdentifier()
@@ -332,14 +328,14 @@ internal object MapboxNavigationTelemetry :
         navigationEvent: NavigationEvent,
         route: DirectionsRoute? = null
     ) {
-        logger?.d(TAG, Message("populateNavigationEvent"))
+        log("populateNavigationEvent")
 
-        val directionsRoute = route ?: routeProgress?.route
+        val directionsRoute = route ?: routeProgress!!.route
 
         navigationEvent.apply {
             sdkIdentifier = this@MapboxNavigationTelemetry.sdkIdentifier
 
-            routeProgress?.let { routeProgress ->
+            routeProgress!!.let { routeProgress ->
                 stepIndex = routeProgress.currentLegProgress?.currentStepProgress?.stepIndex ?: 0
 
                 distanceRemaining = routeProgress.distanceRemaining.toInt()
@@ -356,7 +352,7 @@ internal object MapboxNavigationTelemetry :
                 }
             }
 
-            originalRoute?.let {
+            originalRoute!!.let {
                 originalStepCount = obtainStepCount(it)
                 originalEstimatedDistance = it.distance().toInt()
                 originalEstimatedDuration = it.duration().toInt()
@@ -380,7 +376,7 @@ internal object MapboxNavigationTelemetry :
 
             eventVersion = EVENT_VERSION
 
-            directionsRoute?.let {
+            directionsRoute.let {
                 absoluteDistanceToDestination = obtainAbsoluteDistance(
                     locationsCollector.lastLocation,
                     obtainRouteDestination(it)
@@ -392,26 +388,36 @@ internal object MapboxNavigationTelemetry :
         }
     }
 
+    private fun resetRouteProgress() {
+        log("resetRouteProgress")
+        routeProgress = null
+    }
+
+    private fun resetOriginalRoute() {
+        log("resetOriginalRoute")
+        originalRoute = null
+    }
+
+    private var needStartSession = false
+
+    private fun startSessionIfNeedAndCan() {
+        if (needStartSession && sessionCanBeStarted()) {
+            needStartSession = false
+            sessionStart()
+        }
+    }
+
     override fun onRouteProgressChanged(routeProgress: RouteProgress) {
         this.routeProgress = routeProgress
+        startSessionIfNeedAndCan()
+
         if (routeProgress.currentState == ROUTE_COMPLETE) {
             processArrival()
         }
     }
 
-    private fun resetRouteProgress() {
-        routeProgress = null
-    }
-
-    private fun resetOriginalRoute(route: DirectionsRoute? = null) {
-        logger?.d(TAG, Message("resetOriginalRoute"))
-        originalRoute = route
-    }
-
-    private var needHandleSessionStart = false
-
     override fun onRoutesChanged(routes: List<DirectionsRoute>) {
-        logger?.d(TAG, Message("onRoutesChanged received. Route list size = ${routes.size}"))
+        log("onRoutesChanged. size = ${routes.size}")
         routes.getOrNull(0)?.let {
             if (sessionState == ACTIVE_GUIDANCE) {
                 if (originalRoute != null) {
@@ -419,14 +425,16 @@ internal object MapboxNavigationTelemetry :
                         needHandleReroute = false
                         handleReroute(it)
                     } else {
-                        handleExternalRoute(it)
+                        log("handle ExternalRoute")
+                        sessionStop()
+                        originalRoute = it
+                        needStartSession = true
+                        startSessionIfNeedAndCan()
                     }
                 } else {
                     originalRoute = it
-                    if (needHandleSessionStart) {
-                        needHandleSessionStart = false
-                        sessionStart()
-                    }
+                    needStartSession = true
+                    startSessionIfNeedAndCan()
                 }
             } else {
                 originalRoute = it
@@ -434,28 +442,27 @@ internal object MapboxNavigationTelemetry :
         }
     }
 
-    override fun onOffRouteStateChanged(offRoute: Boolean) {
-        logger?.d(TAG, Message("onOffRouteStateChanged $offRoute"))
-        if (offRoute) {
-            needHandleReroute = true
+    override fun onNavigationSessionStateChanged(navigationSession: NavigationSession.State) {
+        log("session state is $navigationSession")
+        sessionState = navigationSession
+        when (navigationSession) {
+            IDLE, FREE_DRIVE -> sessionStop()
+            ACTIVE_GUIDANCE -> {
+                sendEventsFromPreviousSession()
+                needStartSession = true
+                startSessionIfNeedAndCan()
+            }
         }
     }
 
-    override fun onNavigationSessionStateChanged(navigationSession: NavigationSession.State) {
-        logger?.d(TAG, Message("session state is $navigationSession"))
-        sessionState = navigationSession
-        when (navigationSession) {
-            IDLE, FREE_DRIVE -> {
-                sessionStop()
-                resetOriginalRoute()
-            }
-            ACTIVE_GUIDANCE -> {
-                if (originalRoute != null) {
-                    sessionStart()
-                } else {
-                    needHandleSessionStart = true
-                }
-            }
+    private fun sessionCanBeStarted(): Boolean {
+        return originalRoute != null && routeProgress != null
+    }
+
+    override fun onOffRouteStateChanged(offRoute: Boolean) {
+        log("onOffRouteStateChanged $offRoute")
+        if (offRoute) {
+            needHandleReroute = true
         }
     }
 
@@ -481,5 +488,9 @@ internal object MapboxNavigationTelemetry :
         }
 
         return feedbackLocations.toTypedArray()
+    }
+
+    private fun log(message: String) {
+        logger?.d(TAG, Message(message))
     }
 }
