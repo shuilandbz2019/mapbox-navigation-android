@@ -354,8 +354,7 @@ class MapboxNavigation(
         tripSession.unregisterAllVoiceInstructionsObservers()
         tripSession.unregisterAllRouteAlertsObservers()
         tripSession.unregisterAllEHorizonObservers()
-        tripSession.route = null
-        navigator.reset()
+        resetTripSession()
 
         navigationSession.unregisterAllNavigationSessionStateObservers()
         fasterRouteController.stop()
