@@ -125,10 +125,11 @@ internal object MapboxNavigationTelemetry :
         mapboxNavigation: MapboxNavigation,
         options: NavigationOptions,
         reporter: MetricsReporter,
-        logger: Logger?
+        logger: Logger?,
+        locationsCollector: LocationsCollector = LocationsCollectorImpl(logger)
     ) {
         this.logger = logger
-        this.locationsCollector = LocationsCollectorImpl(logger)
+        this.locationsCollector = locationsCollector
         navigationOptions = options
         context = options.applicationContext
         locationEngineNameExternal = options.locationEngine.javaClass.name
