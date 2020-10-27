@@ -153,18 +153,14 @@ internal object MapboxNavigationTelemetry :
 
     private fun sessionStart() {
         log("sessionStart")
-        originalRoute?.let { route ->
-            dynamicValues.run {
-                sessionId = obtainUniversalUniqueIdentifier()
-                sessionStartTime = Date()
-                sessionStarted = true
-                handleArrive = true
-            }
-
-            val departureEvent = NavigationDepartEvent(PhoneState(context))
-            populateNavigationEvent(departureEvent, route)
-            sendMetricEvent(departureEvent)
+        dynamicValues.run {
+            sessionId = obtainUniversalUniqueIdentifier()
+            sessionStartTime = Date()
+            sessionStarted = true
+            handleArrive = true
         }
+
+        sendMetricEvent(NavigationDepartEvent(PhoneState(context)).populate())
     }
 
     private fun sessionStop() {
@@ -220,7 +216,6 @@ internal object MapboxNavigationTelemetry :
             newDurationRemaining = newRoute.duration().toInt()
             newGeometry = obtainGeometry(newRoute)
         }
-        populateNavigationEvent(navigationRerouteEvent)
 
         locationsCollector.collectLocations { preEventBuffer, postEventBuffer ->
             navigationRerouteEvent.apply {
@@ -228,7 +223,7 @@ internal object MapboxNavigationTelemetry :
                 locationsAfter = postEventBuffer.toTelemetryLocations()
             }
 
-            sendMetricEvent(navigationRerouteEvent)
+            sendMetricEvent(navigationRerouteEvent.populate())
         }
     }
 
@@ -253,7 +248,6 @@ internal object MapboxNavigationTelemetry :
                 this.feedbackSubType = feedbackSubType
                 this.appMetadata = appMetadata
             }
-            populateNavigationEvent(feedbackEvent)
 
             locationsCollector.collectLocations { preEventBuffer, postEventBuffer ->
                 log("locations ready")
@@ -261,7 +255,7 @@ internal object MapboxNavigationTelemetry :
                     locationsBefore = preEventBuffer.toTelemetryLocations()
                     locationsAfter = postEventBuffer.toTelemetryLocations()
                 }
-                sendMetricEvent(feedbackEvent)
+                sendMetricEvent(feedbackEvent.populate())
             }
         }
     }
@@ -274,8 +268,7 @@ internal object MapboxNavigationTelemetry :
         ifNonNull(dynamicValues.sessionArrivalTime) {
             cancelEvent.arrivalTimestamp = generateCreateDateFormatted(it)
         }
-        populateNavigationEvent(cancelEvent)
-        sendMetricEvent(cancelEvent)
+        sendMetricEvent(cancelEvent.populate())
     }
 
     private fun postTurnstileEvent() {
@@ -297,9 +290,7 @@ internal object MapboxNavigationTelemetry :
                 handleArrive = false
             }
 
-            val arriveEvent = NavigationArriveEvent(PhoneState(context))
-            populateNavigationEvent(arriveEvent)
-            sendMetricEvent(arriveEvent)
+            sendMetricEvent(NavigationArriveEvent(PhoneState(context)).populate())
         }
     }
 
@@ -324,15 +315,10 @@ internal object MapboxNavigationTelemetry :
         MapboxMetricsReporter.disable()
     }
 
-    private fun populateNavigationEvent(
-        navigationEvent: NavigationEvent,
-        route: DirectionsRoute? = null
-    ) {
+    private fun NavigationEvent.populate(): NavigationEvent {
         log("populateNavigationEvent")
 
-        val directionsRoute = route ?: routeProgress!!.route
-
-        navigationEvent.apply {
+        return this.apply {
             sdkIdentifier = this@MapboxNavigationTelemetry.sdkIdentifier
 
             routeProgress!!.let { routeProgress ->
@@ -349,6 +335,14 @@ internal object MapboxNavigationTelemetry :
                     stepCount = obtainStepCount(it)
                     legIndex = it.routeIndex()?.toInt() ?: 0
                     legCount = it.legs()?.size ?: 0
+
+                    absoluteDistanceToDestination = obtainAbsoluteDistance(
+                        locationsCollector.lastLocation,
+                        obtainRouteDestination(it)
+                    )
+                    estimatedDistance = it.distance().toInt()
+                    estimatedDuration = it.duration().toInt()
+                    totalStepCount = obtainStepCount(it)
                 }
             }
 
@@ -375,16 +369,6 @@ internal object MapboxNavigationTelemetry :
             }
 
             eventVersion = EVENT_VERSION
-
-            directionsRoute.let {
-                absoluteDistanceToDestination = obtainAbsoluteDistance(
-                    locationsCollector.lastLocation,
-                    obtainRouteDestination(it)
-                )
-                estimatedDistance = it.distance().toInt()
-                estimatedDuration = it.duration().toInt()
-                totalStepCount = obtainStepCount(it)
-            }
         }
     }
 
