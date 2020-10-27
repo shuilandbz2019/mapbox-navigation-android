@@ -35,18 +35,22 @@ class MockLocationUpdatesRule : TestWatcher() {
             throw RuntimeException("MockLocationUpdatesRule is supported on version codes >= Build.VERSION_CODES.M")
         }
 
-        locationManager.addTestProvider(
-            mockProviderName,
-            false,
-            false,
-            false,
-            false,
-            true,
-            true,
-            true,
-            3,
-            2
-        )
+        try {
+            locationManager.addTestProvider(
+                mockProviderName,
+                false,
+                false,
+                false,
+                false,
+                true,
+                true,
+                true,
+                3,
+                2
+            )
+        } catch (ex: Exception) {
+            // unstable
+        }
         locationManager.setTestProviderEnabled(mockProviderName, true)
     }
 

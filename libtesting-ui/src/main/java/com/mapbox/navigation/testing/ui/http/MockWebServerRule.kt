@@ -23,7 +23,7 @@ class MockWebServerRule : TestWatcher() {
                 requestHandlers.forEach {
                     it.handle(request)?.run { return this }
                 }
-                throw IllegalStateException(
+                throw Error(
                     """request url:
                       |${request.path}
                       |is not handled

@@ -1,15 +1,13 @@
 package com.mapbox.navigation.instrumentation_tests.ui
 
 import androidx.test.espresso.Espresso
-import com.mapbox.api.directions.v5.models.DirectionsResponse
-import com.mapbox.navigation.instrumentation_tests.R
 import com.mapbox.navigation.instrumentation_tests.activity.BasicNavigationViewActivity
 import com.mapbox.navigation.instrumentation_tests.arrivalObserver
 import com.mapbox.navigation.instrumentation_tests.utils.MapboxNavigationRule
 import com.mapbox.navigation.instrumentation_tests.utils.idling.ArrivalIdlingResource
 import com.mapbox.navigation.instrumentation_tests.utils.idling.NavigationViewInitIdlingResource
 import com.mapbox.navigation.instrumentation_tests.utils.location.MockLocationReplayerRule
-import com.mapbox.navigation.instrumentation_tests.utils.readRawFileText
+import com.mapbox.navigation.instrumentation_tests.utils.routes.MockRoutesProvider
 import com.mapbox.navigation.instrumentation_tests.utils.runOnMainSync
 import com.mapbox.navigation.testing.ui.BaseTest
 import com.mapbox.navigation.ui.NavigationViewOptions
@@ -35,13 +33,18 @@ class SanityUiRouteTest :
 
     @Test
     fun route_completes() {
+        val mockRoute = MockRoutesProvider.dc_very_short(activity)
+        mockWebServerRule.requestHandlers.addAll(mockRoute.mockRequestHandlers)
+
         val arrivalIdlingResource = ArrivalIdlingResource()
         arrivalIdlingResource.register()
-        val route = DirectionsResponse.fromJson(
-            readRawFileText(activity, R.raw.route_response_dc_very_short)
-        ).routes()[0]
+        val route = mockRoute.routeResponse.routes()[0]
 
         runOnMainSync {
+            mockLocationUpdatesRule.pushLocationUpdate {
+                latitude = mockRoute.routeWaypoints.first().latitude()
+                longitude = mockRoute.routeWaypoints.first().longitude()
+            }
             mockLocationReplayerRule.playRoute(route)
             activity.navigationView.startNavigation(
                 NavigationViewOptions.builder(activity)
@@ -49,6 +52,7 @@ class SanityUiRouteTest :
                     .arrivalObserver(
                         arrivalObserver(null, { arrivalIdlingResource.arrived() })
                     )
+                    .voiceInstructionLoaderBaseUrl(mockWebServerRule.baseUrl)
                     .build()
             )
         }
