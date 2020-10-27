@@ -18,27 +18,8 @@ class MockLocationUpdatesRule : TestWatcher() {
     private val instrumentation = getInstrumentation()
     private val appContext = (ApplicationProvider.getApplicationContext() as Context)
 
-    // lm.getBestProvider(Criteria().also { it.accuracy = Criteria.ACCURACY_FINE }, true)
     private val locationManager: LocationManager by lazy {
-        (appContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager).also {
-            try {
-                it.removeTestProvider(mockProviderName)
-            } finally {
-                it.addTestProvider(
-                    mockProviderName,
-                    false,
-                    false,
-                    false,
-                    false,
-                    true,
-                    true,
-                    true,
-                    3,
-                    2
-                )
-                it.setTestProviderEnabled(mockProviderName, true)
-            }
-        }
+        (appContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager)
     }
 
     override fun starting(description: Description?) {
@@ -53,6 +34,25 @@ class MockLocationUpdatesRule : TestWatcher() {
         } else {
             throw RuntimeException("MockLocationUpdatesRule is supported on version codes >= Build.VERSION_CODES.M")
         }
+
+        locationManager.addTestProvider(
+            mockProviderName,
+            false,
+            false,
+            false,
+            false,
+            true,
+            true,
+            true,
+            3,
+            2
+        )
+        locationManager.setTestProviderEnabled(mockProviderName, true)
+    }
+
+    override fun finished(description: Description?) {
+        locationManager.setTestProviderEnabled(mockProviderName, false)
+        locationManager.removeTestProvider(mockProviderName)
     }
 
     /**
